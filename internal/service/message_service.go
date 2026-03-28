@@ -66,6 +66,34 @@ func (s *MessageService) ListMessages(ctx context.Context, userID uint64, groupI
 	return views, nil
 }
 
+func (s *MessageService) ListMessagesForAdmin(ctx context.Context, groupID string, beforeSeq uint64, limit int) ([]MessageView, error) {
+	group, err := s.groups.GetByGroupID(ctx, groupID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "group_not_found", "group not found")
+		}
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	items, err := s.messages.ListGroupMessages(ctx, group.ID, beforeSeq, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]MessageView, 0, len(items))
+	for i := len(items) - 1; i >= 0; i-- {
+		view, err := s.toMessageViewForAdmin(ctx, *group, items[i])
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
 func (s *MessageService) SendMessage(ctx context.Context, userID uint64, groupID string, input SendMessageInput) (*MessageView, error) {
 	group, member, err := s.requireActiveMembership(ctx, userID, groupID)
 	if err != nil {
@@ -437,6 +465,14 @@ func (s *MessageService) validateMediaCIDs(ctx context.Context, mainCID, thumbna
 }
 
 func (s *MessageService) toMessageViewForUser(ctx context.Context, viewerID uint64, group model.Group, message model.GroupMessage) (MessageView, error) {
+	return s.toMessageView(ctx, viewerID, group, message, false)
+}
+
+func (s *MessageService) toMessageViewForAdmin(ctx context.Context, group model.Group, message model.GroupMessage) (MessageView, error) {
+	return s.toMessageView(ctx, 0, group, message, true)
+}
+
+func (s *MessageService) toMessageView(ctx context.Context, viewerID uint64, group model.Group, message model.GroupMessage, adminView bool) (MessageView, error) {
 	payload, err := decodeJSONPayload(message.PayloadJSON)
 	if err != nil {
 		return MessageView{}, err
@@ -463,7 +499,7 @@ func (s *MessageService) toMessageViewForUser(ctx context.Context, viewerID uint
 	}
 
 	if message.ContentType == model.MessageContentTypeForward && message.ForwardFromMessageID != nil {
-		ref, err := s.resolveForwardReference(ctx, viewerID, *message.ForwardFromMessageID)
+		ref, err := s.resolveForwardReference(ctx, viewerID, *message.ForwardFromMessageID, adminView)
 		if err != nil {
 			return MessageView{}, err
 		}
@@ -473,7 +509,7 @@ func (s *MessageService) toMessageViewForUser(ctx context.Context, viewerID uint
 	return view, nil
 }
 
-func (s *MessageService) resolveForwardReference(ctx context.Context, viewerID uint64, forwardMessageID string) (*ForwardReferenceView, error) {
+func (s *MessageService) resolveForwardReference(ctx context.Context, viewerID uint64, forwardMessageID string, adminView bool) (*ForwardReferenceView, error) {
 	source, err := s.messages.GetByMessageID(ctx, forwardMessageID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -482,10 +518,12 @@ func (s *MessageService) resolveForwardReference(ctx context.Context, viewerID u
 		return nil, err
 	}
 
-	if _, _, err := s.requireActiveMembership(ctx, viewerID, source.Group.GroupID); err != nil {
-		return &ForwardReferenceView{State: "unavailable", Notice: "原消息不可见"}, nil
+	if !adminView {
+		if _, _, err := s.requireActiveMembership(ctx, viewerID, source.Group.GroupID); err != nil {
+			return &ForwardReferenceView{State: "unavailable", Notice: "原消息不可见"}, nil
+		}
 	}
-	if source.Status == model.MessageStatusDeleted || !isVisibleByTTL(source.Group.MessageTTLSeconds, source.CreatedAt, time.Now().UTC()) {
+	if !adminView && (source.Status == model.MessageStatusDeleted || !isVisibleByTTL(source.Group.MessageTTLSeconds, source.CreatedAt, time.Now().UTC())) {
 		return &ForwardReferenceView{State: "deleted_or_expired", Notice: sanitizeDeletedNotice(source)}, nil
 	}
 

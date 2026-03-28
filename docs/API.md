@@ -7,6 +7,7 @@
 ### 1.1 服务地址
 
 - HTTP Base URL: `http://<host>:8080`
+- Admin Base URL: `http://<host>:8081`
 - WebSocket URL: `ws://<host>:8080/ws?token=<jwt>`
 - IPFS Gateway: `http://<host>:8081/ipfs/<cid>`
 
@@ -132,7 +133,57 @@ Authorization: Bearer <jwt>
 }
 ```
 
-## 3. 公共数据结构
+## 3. 管理后台
+
+管理后台运行在独立端口，默认 `ADMIN_HTTP_ADDR=:8081`。它使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录，返回独立的 admin JWT，不和前台用户 token 混用。
+
+### 3.1 登录
+
+`POST /admin/login`
+
+请求体：
+
+```json
+{
+  "username": "admin",
+  "password": "admin123456"
+}
+```
+
+响应体：
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "username": "admin"
+}
+```
+
+### 3.2 常用接口
+
+所有以下接口都需要 `Authorization: Bearer <admin-jwt>`。
+
+- `GET /admin/me`
+- `GET /admin/users`
+- `GET /admin/groups`
+- `POST /admin/groups`
+- `GET /admin/groups/{group_id}`
+- `PATCH /admin/groups/{group_id}`
+- `POST /admin/groups/{group_id}/dissolve`
+- `GET /admin/groups/{group_id}/members`
+- `GET /admin/groups/{group_id}/messages`
+
+说明：
+
+- `GET /admin/users` 返回用户列表
+- `GET /admin/groups` 返回群列表
+- `POST /admin/groups` 创建群聊
+- `PATCH /admin/groups/{group_id}` 修改群资料和群配置
+- `POST /admin/groups/{group_id}/dissolve` 解散群聊
+- `GET /admin/groups/{group_id}/members` 查看群成员
+- `GET /admin/groups/{group_id}/messages` 查看群聊天记录
+
+## 4. 公共数据结构
 
 ### 3.1 User
 

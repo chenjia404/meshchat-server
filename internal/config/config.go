@@ -12,9 +12,12 @@ type Config struct {
 	AppName            string
 	LogLevel           string
 	HTTPAddr           string
+	AdminHTTPAddr      string
 	ShutdownTimeout    time.Duration
 	ServerMode         string
 	ServerAdminPeerIDs []string
+	AdminUsername      string
+	AdminPassword      string
 	DatabaseURL        string
 	RedisAddr          string
 	RedisPassword      string
@@ -39,9 +42,12 @@ func Load() Config {
 		AppName:            getEnv("APP_NAME", "meshchat-server"),
 		LogLevel:           strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
+		AdminHTTPAddr:      getEnv("ADMIN_HTTP_ADDR", ":8081"),
 		ShutdownTimeout:    getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
 		ServerMode:         strings.ToLower(getEnv("SERVER_MODE", "restricted")),
 		ServerAdminPeerIDs: getEnvCSV("SERVER_ADMIN_PEER_IDS"),
+		AdminUsername:      getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:      getEnv("ADMIN_PASSWORD", "admin123456"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://meshchat:meshchat@localhost:5432/meshchat?sslmode=disable"),
 		RedisAddr:          getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:      getEnv("REDIS_PASSWORD", ""),

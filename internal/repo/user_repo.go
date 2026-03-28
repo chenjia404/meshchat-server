@@ -49,6 +49,21 @@ func (r *UserRepo) ListByIDs(ctx context.Context, ids []uint64) (map[uint64]mode
 	return result, nil
 }
 
+func (r *UserRepo) List(ctx context.Context, limit, offset int) ([]model.ServerUser, error) {
+	var users []model.ServerUser
+	query := r.db.WithContext(ctx).Order("id DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+	if err := query.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (r *UserRepo) Create(ctx context.Context, user *model.ServerUser) error {
 	return r.db.WithContext(ctx).Create(user).Error
 }

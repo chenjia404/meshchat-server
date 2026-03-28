@@ -40,6 +40,21 @@ func (r *GroupRepo) GetByGroupID(ctx context.Context, groupID string) (*model.Gr
 	return &group, nil
 }
 
+func (r *GroupRepo) List(ctx context.Context, limit, offset int) ([]model.Group, error) {
+	var groups []model.Group
+	query := r.db.WithContext(ctx).Preload("OwnerUser").Order("created_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+	if err := query.Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
 func (r *GroupRepo) GetByIDForUpdate(ctx context.Context, tx *gorm.DB, id uint64) (*model.Group, error) {
 	var group model.Group
 	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "id = ?", id).Error; err != nil {

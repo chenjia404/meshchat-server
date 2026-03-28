@@ -17,6 +17,7 @@ import (
 	appmiddleware "meshchat-server/internal/middleware"
 	"meshchat-server/internal/repo"
 	"meshchat-server/internal/service"
+	admintransport "meshchat-server/internal/transport/adminhttp"
 	httptransport "meshchat-server/internal/transport/http"
 	wstransport "meshchat-server/internal/transport/ws"
 
@@ -24,13 +25,14 @@ import (
 )
 
 type App struct {
-	cfg        config.Config
-	logger     *slog.Logger
-	httpServer *http.Server
-	redisBus   *events.RedisBus
-	hub        *wstransport.Hub
-	messages   *service.MessageService
-	groups     *service.GroupService
+	cfg             config.Config
+	logger          *slog.Logger
+	httpServer      *http.Server
+	adminHTTPServer *http.Server
+	redisBus        *events.RedisBus
+	hub             *wstransport.Hub
+	messages        *service.MessageService
+	groups          *service.GroupService
 }
 
 func New(cfg config.Config, logger *slog.Logger) (*App, error) {
@@ -64,6 +66,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	fileRepo := repo.NewFileRepo(postgres)
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
+	adminJWTManager := auth.NewAdminJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
 	redisBus := events.NewRedisBus(redisClient, logger)
 	serverAdmins := service.NewServerAdminService(userRepo, cfg.ServerAdminPeerIDs)
 
@@ -72,26 +75,35 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	groupService := service.NewGroupService(groupRepo, redisBus, ipfsClient, serverAdmins, cfg.ServerMode)
 	messageService := service.NewMessageService(groupRepo, messageRepo, redisClient, ipfsClient, redisBus)
 	fileService := service.NewFileService(fileRepo, ipfsClient)
+	adminService := service.NewAdminService(userRepo, groupRepo, messageService, ipfsClient, redisBus, adminJWTManager, cfg.AdminUsername, cfg.AdminPassword)
 
 	hub := wstransport.NewHub()
 	wsHandler := wstransport.NewHandler(hub, jwtManager, redisClient, groupService, logger, cfg.WSSendBuffer, cfg.WSWriteWait, cfg.WSPongWait, cfg.WSPingInterval, cfg.OnlineTTL)
 	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, wsHandler, cfg.ServerMode)
 	router := httptransport.NewRouter(httpHandler, jwtManager, appmiddleware.Recoverer(logger), appmiddleware.RequestLogger(logger))
+	adminHandler := admintransport.NewHandler(adminService)
+	adminRouter := admintransport.NewRouter(adminHandler, adminJWTManager, appmiddleware.Recoverer(logger), appmiddleware.RequestLogger(logger))
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	adminHTTPServer := &http.Server{
+		Addr:              cfg.AdminHTTPAddr,
+		Handler:           adminRouter,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	return &App{
-		cfg:        cfg,
-		logger:     logger,
-		httpServer: httpServer,
-		redisBus:   redisBus,
-		hub:        hub,
-		messages:   messageService,
-		groups:     groupService,
+		cfg:             cfg,
+		logger:          logger,
+		httpServer:      httpServer,
+		adminHTTPServer: adminHTTPServer,
+		redisBus:        redisBus,
+		hub:             hub,
+		messages:        messageService,
+		groups:          groupService,
 	}, nil
 }
 
@@ -105,7 +117,7 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
-	serverErr := make(chan error, 1)
+	serverErr := make(chan error, 2)
 	go func() {
 		a.logger.Info("starting http server", slog.String("addr", a.cfg.HTTPAddr))
 		if err := a.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -114,15 +126,38 @@ func (a *App) Run(ctx context.Context) error {
 		}
 		serverErr <- nil
 	}()
+	go func() {
+		a.logger.Info("starting admin http server", slog.String("addr", a.cfg.AdminHTTPAddr))
+		if err := a.adminHTTPServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
+
+	shutdownServers := func() error {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), a.cfg.ShutdownTimeout)
+		defer cancel()
+		adminErr := a.adminHTTPServer.Shutdown(shutdownCtx)
+		httpErr := a.httpServer.Shutdown(shutdownCtx)
+		if adminErr != nil && !errors.Is(adminErr, http.ErrServerClosed) {
+			return adminErr
+		}
+		if httpErr != nil && !errors.Is(httpErr, http.ErrServerClosed) {
+			return httpErr
+		}
+		return nil
+	}
 
 	select {
 	case <-ctx.Done():
 		cancelConsume()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), a.cfg.ShutdownTimeout)
-		defer cancel()
-		return a.httpServer.Shutdown(shutdownCtx)
+		return shutdownServers()
 	case err := <-serverErr:
 		cancelConsume()
+		if shutdownErr := shutdownServers(); shutdownErr != nil && err == nil {
+			return shutdownErr
+		}
 		return err
 	}
 }

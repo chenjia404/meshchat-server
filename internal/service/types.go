@@ -97,6 +97,15 @@ type LoginResponse struct {
 	User  PublicUser `json:"user"`
 }
 
+type AdminLoginResponse struct {
+	Token    string `json:"token"`
+	Username string `json:"username"`
+}
+
+type AdminMeView struct {
+	Username string `json:"username"`
+}
+
 type ServerInfoView struct {
 	ServerMode string `json:"server_mode"`
 }
