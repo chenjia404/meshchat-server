@@ -103,6 +103,88 @@ func (s *GroupService) GetGroup(ctx context.Context, userID uint64, groupID stri
 	return &view, nil
 }
 
+func (s *GroupService) JoinGroup(ctx context.Context, userID uint64, groupID string) (*GroupMemberView, error) {
+	group, err := s.groups.GetByGroupID(ctx, groupID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "group_not_found", "group not found")
+		}
+		return nil, err
+	}
+	if group.Status != model.GroupStatusActive {
+		return nil, apperrors.New(403, "group_closed", "group is closed")
+	}
+	if group.JoinMode != model.JoinModeOpen {
+		return nil, apperrors.New(403, "join_not_allowed", "group does not allow open join")
+	}
+
+	if err := s.groups.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		lockedGroup, err := s.groups.GetByIDForUpdate(ctx, tx, group.ID)
+		if err != nil {
+			return err
+		}
+		if lockedGroup.Status != model.GroupStatusActive {
+			return apperrors.New(403, "group_closed", "group is closed")
+		}
+		if lockedGroup.JoinMode != model.JoinModeOpen {
+			return apperrors.New(403, "join_not_allowed", "group does not allow open join")
+		}
+
+		existing, err := s.groups.GetMemberForUpdate(ctx, tx, group.ID, userID)
+		if err == nil {
+			if existing.Status == model.MemberStatusBanned {
+				return apperrors.New(403, "member_banned", "member is banned")
+			}
+			if existing.Status == model.MemberStatusActive {
+				return nil
+			}
+			existing.Role = model.RoleMember
+			existing.Status = model.MemberStatusActive
+			existing.JoinedAt = time.Now().UTC()
+			existing.MutedUntil = nil
+			existing.PermissionsAllow = 0
+			existing.PermissionsDeny = 0
+			if err := tx.WithContext(ctx).Model(existing).Updates(map[string]any{
+				"role":              existing.Role,
+				"status":            existing.Status,
+				"joined_at":         existing.JoinedAt,
+				"muted_until":       existing.MutedUntil,
+				"permissions_allow": existing.PermissionsAllow,
+				"permissions_deny":  existing.PermissionsDeny,
+			}).Error; err != nil {
+				return err
+			}
+			return nil
+		}
+		if err != gorm.ErrRecordNotFound {
+			return err
+		}
+
+		newMember := &model.GroupMember{
+			GroupID:          lockedGroup.ID,
+			UserID:           userID,
+			Role:             model.RoleMember,
+			Status:           model.MemberStatusActive,
+			JoinedAt:         time.Now().UTC(),
+			PermissionsAllow: 0,
+			PermissionsDeny:  0,
+		}
+		if err := tx.WithContext(ctx).Create(newMember).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	loaded, err := s.groups.GetMember(ctx, group.ID, userID)
+	if err != nil {
+		return nil, err
+	}
+	view := s.toMemberView(*group, *loaded)
+	return &view, nil
+}
+
 func (s *GroupService) DissolveGroup(ctx context.Context, userID uint64, groupID string) (*GroupLifecycleView, error) {
 	if err := s.admins.RequireServerAdmin(ctx, userID); err != nil {
 		return nil, err

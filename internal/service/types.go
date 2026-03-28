@@ -47,6 +47,10 @@ type GroupMemberView struct {
 	EffectivePermissions int64      `json:"effective_permissions"`
 }
 
+type JoinGroupInput struct {
+	// Reserved for future expansion, such as invite tokens.
+}
+
 type ForwardReferenceView struct {
 	State   string          `json:"state"`
 	Message *MessageSummary `json:"message,omitempty"`

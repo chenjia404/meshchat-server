@@ -94,6 +94,15 @@ func (h *Handler) getGroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) postGroupJoin(w http.ResponseWriter, r *http.Request) {
+	response, err := h.groups.JoinGroup(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *Handler) patchGroup(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateGroupInput
 	if !decodeBody(w, r, &request) {

@@ -459,6 +459,23 @@ effective_permissions =
 
 返回群详情。
 
+### POST /groups/{group_id}/join
+
+权限要求：
+
+- 群必须处于 `active`
+- 群的 `join_mode` 必须是 `open`
+
+无请求体。
+
+说明：
+
+- 用户加入后才有该群的发言权限
+- 重复加入是幂等的
+- `banned` 成员不能通过该接口重新加入
+
+返回当前成员对象。
+
 ### PATCH /groups/{group_id}
 
 请求体：
