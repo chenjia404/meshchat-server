@@ -22,6 +22,9 @@ func Run(ctx context.Context, db *gorm.DB) error {
 		); err != nil {
 			return err
 		}
+		if err := ensureCanonicalUserAvatarColumn(tx); err != nil {
+			return err
+		}
 
 		if err := ensureCanonicalGroupTables(tx); err != nil {
 			return err
@@ -141,6 +144,41 @@ func ensureCanonicalGroupTables(tx *gorm.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func ensureCanonicalUserAvatarColumn(tx *gorm.DB) error {
+	var hasLegacyColumn bool
+	if err := tx.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'server_users'
+			  AND column_name = 'avatar_cid'
+		)
+	`).Scan(&hasLegacyColumn).Error; err != nil {
+		return err
+	}
+	if hasLegacyColumn {
+		return nil
+	}
+
+	var hasSnakeColumn bool
+	if err := tx.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'server_users'
+			  AND column_name = 'avatar_c_id'
+		)
+	`).Scan(&hasSnakeColumn).Error; err != nil {
+		return err
+	}
+	if hasSnakeColumn {
+		return tx.Exec(`ALTER TABLE "server_users" RENAME COLUMN "avatar_c_id" TO "avatar_cid"`).Error
+	}
 	return nil
 }
 
