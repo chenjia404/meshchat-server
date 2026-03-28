@@ -36,6 +36,7 @@ func NewHandler(authService *service.AuthService, profile *service.ProfileServic
 
 func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(stdhttp.Handler) stdhttp.Handler, requestLogger func(stdhttp.Handler) stdhttp.Handler) chi.Router {
 	router := chi.NewRouter()
+	router.Use(appmiddleware.AllowAnyOriginCORS())
 	router.Use(chimiddleware.RequestID)
 	router.Use(recoverer)
 	router.Use(requestLogger)
