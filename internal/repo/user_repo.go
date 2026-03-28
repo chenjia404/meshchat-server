@@ -16,6 +16,10 @@ func NewUserRepo(db *gorm.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
 
+func (r *UserRepo) DB() *gorm.DB {
+	return r.db
+}
+
 func (r *UserRepo) GetByID(ctx context.Context, id uint64) (*model.ServerUser, error) {
 	if err := r.ensureTable(); err != nil {
 		return nil, err

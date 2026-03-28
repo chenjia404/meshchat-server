@@ -161,6 +161,19 @@ func (h *Handler) postMemberInvite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) postMembersInvite(w http.ResponseWriter, r *http.Request) {
+	var request service.InviteGroupMembersInput
+	if !decodeBody(w, r, &request) {
+		return
+	}
+	response, err := h.groups.InviteMembersByPeerIDs(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *Handler) patchMessagePolicy(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateMessagePolicyInput
 	if !decodeBody(w, r, &request) {

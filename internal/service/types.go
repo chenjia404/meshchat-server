@@ -55,6 +55,10 @@ type InviteGroupMemberInput struct {
 	UserID uint64 `json:"user_id"`
 }
 
+type InviteGroupMembersInput struct {
+	PeerIDs []string `json:"peer_ids"`
+}
+
 type ForwardReferenceView struct {
 	State   string          `json:"state"`
 	Message *MessageSummary `json:"message,omitempty"`
