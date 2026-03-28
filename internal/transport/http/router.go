@@ -56,6 +56,7 @@ func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(std
 
 		r.Post("/groups", handler.postGroups)
 		r.Post("/groups/{group_id}/join", handler.postGroupJoin)
+		r.Post("/groups/{group_id}/leave", handler.postGroupLeave)
 		r.Get("/groups/{group_id}", handler.getGroup)
 		r.Patch("/groups/{group_id}", handler.patchGroup)
 		r.Post("/groups/{group_id}/transfer-owner", handler.postGroupTransferOwner)

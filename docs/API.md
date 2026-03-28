@@ -476,6 +476,22 @@ effective_permissions =
 
 返回当前成员对象。
 
+### POST /groups/{group_id}/leave
+
+权限要求：
+
+- 调用者必须是该群的活跃成员
+
+无请求体。
+
+说明：
+
+- 退出后成员状态会变为 `left`
+- 群主不能直接退出，必须先转让群主
+- 公开群在退出后仍可重新 `join`
+
+返回当前成员对象。
+
 ### PATCH /groups/{group_id}
 
 请求体：

@@ -185,6 +185,64 @@ func (s *GroupService) JoinGroup(ctx context.Context, userID uint64, groupID str
 	return &view, nil
 }
 
+func (s *GroupService) LeaveGroup(ctx context.Context, userID uint64, groupID string) (*GroupMemberView, error) {
+	group, member, err := s.requireMembership(ctx, userID, groupID, true)
+	if err != nil {
+		return nil, err
+	}
+	if member.Status != model.MemberStatusActive {
+		return nil, apperrors.New(403, "member_inactive", "member is not active in this group")
+	}
+	if group.OwnerUserID == userID || member.Role == model.RoleOwner {
+		return nil, apperrors.New(403, "forbidden", "group owner must transfer ownership before leaving")
+	}
+
+	if err := s.groups.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		lockedGroup, err := s.groups.GetByIDForUpdate(ctx, tx, group.ID)
+		if err != nil {
+			return err
+		}
+		lockedMember, err := s.groups.GetMemberForUpdate(ctx, tx, group.ID, userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return apperrors.New(403, "not_group_member", "user is not an active group member")
+			}
+			return err
+		}
+		if lockedMember.Status != model.MemberStatusActive {
+			return apperrors.New(403, "member_inactive", "member is not active in this group")
+		}
+		if lockedGroup.OwnerUserID == userID || lockedMember.Role == model.RoleOwner {
+			return apperrors.New(403, "forbidden", "group owner must transfer ownership before leaving")
+		}
+
+		lockedMember.Status = model.MemberStatusLeft
+		lockedMember.MutedUntil = nil
+		if err := tx.WithContext(ctx).Model(lockedMember).Updates(map[string]any{
+			"status":      lockedMember.Status,
+			"muted_until": lockedMember.MutedUntil,
+		}).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	leftMember, err := s.groups.GetMember(ctx, group.ID, userID)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publisher.Publish(ctx, events.Envelope{
+		Type:    events.EventGroupMemberUpdated,
+		GroupID: group.GroupID,
+		UserID:  userID,
+		At:      time.Now().UTC(),
+	})
+	view := s.toMemberView(*group, *leftMember)
+	return &view, nil
+}
+
 func (s *GroupService) DissolveGroup(ctx context.Context, userID uint64, groupID string) (*GroupLifecycleView, error) {
 	if err := s.admins.RequireServerAdmin(ctx, userID); err != nil {
 		return nil, err

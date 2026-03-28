@@ -220,6 +220,7 @@ curl -X POST http://localhost:8080/files \
 - 服务器管理员可以解散群；服务器管理员和群主都可以设置或取消群管理员。
 - 当前群主可以将群转让给本群的其他活跃成员，转让后原群主自动变为管理员。
 - 公开群支持 `POST /groups/{group_id}/join` 自助加入，加入后才能在该群发言。
+- `POST /groups/{group_id}/leave` 支持主动退出群聊，退出后不再拥有该群权限；公开群后续仍可重新加入。
 - `peer_id` 仅用于认证和内部存储，不会出现在 HTTP/WS 响应中。
 - `forward` 为引用型转发，不复制原消息快照。
 - TTL 与 slow mode 都按群当前配置动态生效。
