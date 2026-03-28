@@ -59,6 +59,17 @@ func (h *Handler) getMyProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) getMyGroups(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	response, err := h.groups.ListMyGroups(r.Context(), currentUserID(r), limit, offset)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *Handler) patchMyProfile(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateProfileInput
 	if !decodeBody(w, r, &request) {

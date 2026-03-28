@@ -106,6 +106,22 @@ func (s *GroupService) GetGroup(ctx context.Context, userID uint64, groupID stri
 	return &view, nil
 }
 
+func (s *GroupService) ListMyGroups(ctx context.Context, userID uint64, limit, offset int) ([]GroupView, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	members, err := s.groups.ListGroupsByMember(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]GroupView, 0, len(members))
+	for _, member := range members {
+		views = append(views, s.toGroupView(member.Group, member))
+	}
+	return views, nil
+}
+
 func (s *GroupService) JoinGroup(ctx context.Context, userID uint64, groupID string) (*GroupMemberView, error) {
 	group, err := s.groups.GetByGroupID(ctx, groupID)
 	if err != nil {

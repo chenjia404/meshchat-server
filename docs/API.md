@@ -468,6 +468,17 @@ effective_permissions =
 
 返回当前登录用户资料。
 
+### GET /me/groups
+
+返回当前用户所有 `active` 加入的群聊。
+
+可选查询参数：
+
+- `limit`
+- `offset`
+
+返回 `GroupView` 列表。
+
 ### PATCH /me/profile
 
 请求体：

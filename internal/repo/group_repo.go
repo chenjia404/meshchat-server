@@ -160,6 +160,27 @@ func (r *GroupRepo) ListMembers(ctx context.Context, groupDBID uint64) ([]model.
 	return members, nil
 }
 
+func (r *GroupRepo) ListGroupsByMember(ctx context.Context, userID uint64, limit, offset int) ([]model.GroupMember, error) {
+	if err := r.ensureTable(); err != nil {
+		return nil, err
+	}
+	var members []model.GroupMember
+	query := r.db.WithContext(ctx).
+		Preload("Group.OwnerUser").
+		Where("group_members.user_id = ? AND group_members.status = ?", userID, model.MemberStatusActive).
+		Order("group_members.joined_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+	if err := query.Find(&members).Error; err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
 func (r *GroupRepo) UpdateMember(ctx context.Context, member *model.GroupMember) error {
 	if err := r.ensureTable(); err != nil {
 		return err

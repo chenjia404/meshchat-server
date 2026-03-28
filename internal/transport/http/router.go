@@ -52,6 +52,7 @@ func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(std
 
 	router.Group(func(r chi.Router) {
 		r.Use(appmiddleware.RequireAuth(jwtManager))
+		r.Get("/me/groups", handler.getMyGroups)
 		r.Get("/me/profile", handler.getMyProfile)
 		r.Patch("/me/profile", handler.patchMyProfile)
 
