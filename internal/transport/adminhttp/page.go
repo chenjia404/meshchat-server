@@ -149,7 +149,6 @@ const adminPageHTML = `<!doctype html>
           <div class="stack" style="margin-top:12px;">
             <div class="mini">按 peer_id 修改用户资料</div>
             <input id="editUserPeerID" placeholder="peer_id" readonly>
-            <input id="editUserUsername" placeholder="用户名">
             <input id="editUserDisplayName" placeholder="昵称">
             <input id="editUserAvatarCID" placeholder="头像 CID">
             <textarea id="editUserBio" placeholder="简介"></textarea>
@@ -355,16 +354,15 @@ const adminPageHTML = `<!doctype html>
           '<td>' + escapeHtml(u.username || '') + '</td>' +
           '<td>' + escapeHtml(u.display_name || '') + '</td>' +
           '<td>' + escapeHtml(u.status || '') + '</td>' +
-          '<td><button class="secondary" onclick="fillUserForm(\'' + escapeAttr(u.peer_id || '') + '\', \'' + escapeAttr(u.username || '') + '\', \'' + escapeAttr(u.display_name || '') + '\', \'' + escapeAttr(u.avatar_cid || '') + '\', \'' + escapeAttr(u.bio || '') + '\', \'' + escapeAttr(u.status || '') + '\')">编辑</button></td>' +
+          '<td><button class="secondary" onclick="fillUserForm(\'' + escapeAttr(u.peer_id || '') + '\', \'' + escapeAttr(u.display_name || '') + '\', \'' + escapeAttr(u.avatar_cid || '') + '\', \'' + escapeAttr(u.bio || '') + '\', \'' + escapeAttr(u.status || '') + '\')">编辑</button></td>' +
           '</tr>').join('');
       } catch (err) {
         handleAuthError(err);
       }
     }
 
-    function fillUserForm(peerID, username, displayName, avatarCID, bio, status) {
+    function fillUserForm(peerID, displayName, avatarCID, bio, status) {
       document.getElementById('editUserPeerID').value = peerID || '';
-      document.getElementById('editUserUsername').value = username || '';
       document.getElementById('editUserDisplayName').value = displayName || '';
       document.getElementById('editUserAvatarCID').value = avatarCID || '';
       document.getElementById('editUserBio').value = bio || '';
@@ -379,7 +377,6 @@ const adminPageHTML = `<!doctype html>
       }
       try {
         const payload = {
-          username: document.getElementById('editUserUsername').value.trim(),
           display_name: document.getElementById('editUserDisplayName').value.trim(),
           avatar_cid: document.getElementById('editUserAvatarCID').value.trim(),
           bio: document.getElementById('editUserBio').value.trim(),

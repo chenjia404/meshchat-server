@@ -17,6 +17,7 @@ import (
 func toPublicUser(user model.ServerUser) PublicUser {
 	return PublicUser{
 		ID:             user.ID,
+		PeerID:         user.PeerID,
 		Username:       user.Username,
 		DisplayName:    user.DisplayName,
 		AvatarCID:      user.AvatarCID,
@@ -72,11 +73,8 @@ func decodeJSONPayload(raw datatypes.JSON) (map[string]any, error) {
 	return payload, nil
 }
 
-func validateProfileFieldLengths(username, displayName, bio string) error {
-	if strings.TrimSpace(username) == "" {
-		return apperrors.New(400, "invalid_username", "username is required")
-	}
-	if len(username) > 64 || len(displayName) > 128 || len(bio) > 1024 {
+func validateProfileFieldLengths(displayName, bio string) error {
+	if len(displayName) > 128 || len(bio) > 1024 {
 		return apperrors.New(400, "invalid_profile", "profile field is too long")
 	}
 	return nil

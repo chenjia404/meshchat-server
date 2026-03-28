@@ -54,7 +54,7 @@ func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(std
 		r.Use(appmiddleware.RequireAuth(jwtManager))
 		r.Get("/me/groups", handler.getMyGroups)
 		r.Get("/me/profile", handler.getMyProfile)
-		r.Patch("/me/profile", handler.patchMyProfile)
+		r.Patch("/users/{peer_id}/profile", handler.patchUserProfileByPeerID)
 
 		r.Post("/groups", handler.postGroups)
 		r.Post("/groups/{group_id}/join", handler.postGroupJoin)

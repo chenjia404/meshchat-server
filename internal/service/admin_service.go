@@ -88,7 +88,7 @@ func (s *AdminService) UpdateUserProfileByPeerID(ctx context.Context, peerID str
 		return nil, err
 	}
 
-	if err := validateProfileFieldLengths(input.Username, input.DisplayName, input.Bio); err != nil {
+	if err := validateProfileFieldLengths(input.DisplayName, input.Bio); err != nil {
 		return nil, err
 	}
 	if input.AvatarCID != "" {
@@ -97,7 +97,6 @@ func (s *AdminService) UpdateUserProfileByPeerID(ctx context.Context, peerID str
 		}
 	}
 
-	user.Username = strings.TrimSpace(input.Username)
 	user.DisplayName = strings.TrimSpace(input.DisplayName)
 	user.AvatarCID = strings.TrimSpace(input.AvatarCID)
 	user.Bio = strings.TrimSpace(input.Bio)
@@ -107,9 +106,6 @@ func (s *AdminService) UpdateUserProfileByPeerID(ctx context.Context, peerID str
 	user.ProfileVersion++
 
 	if err := s.users.UpdateProfile(ctx, user); err != nil {
-		if duplicateConstraintError(err) {
-			return nil, apperrors.New(409, "username_taken", "username already exists")
-		}
 		return nil, err
 	}
 

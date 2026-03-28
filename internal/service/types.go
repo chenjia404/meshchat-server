@@ -2,9 +2,10 @@ package service
 
 import "time"
 
-// PublicUser is the user shape exposed to clients. peer_id is intentionally omitted.
+// PublicUser is the user shape exposed to clients.
 type PublicUser struct {
 	ID             uint64    `json:"id"`
+	PeerID         string    `json:"peer_id,omitempty"`
 	Username       string    `json:"username"`
 	DisplayName    string    `json:"display_name"`
 	AvatarCID      string    `json:"avatar_cid,omitempty"`
@@ -169,7 +170,6 @@ type ForwardPayload struct {
 }
 
 type UpdateProfileInput struct {
-	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	AvatarCID   string `json:"avatar_cid"`
 	Bio         string `json:"bio"`

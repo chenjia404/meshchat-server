@@ -1,6 +1,6 @@
 # MeshChat Server
 
-基于 Go + Chi + GORM + PostgreSQL + Redis + WebSocket + IPFS 的群聊服务端骨架与核心功能实现。服务端使用 libp2p 公钥/签名 challenge 登录，外部接口不会暴露 `peer_id`。
+基于 Go + Chi + GORM + PostgreSQL + Redis + WebSocket + IPFS 的群聊服务端骨架与核心功能实现。服务端使用 libp2p 公钥/签名 challenge 登录，用户资料相关接口会返回 `peer_id`，用于按稳定标识更新资料。
 
 程序接入方可直接参考 [API.md](/mnt/e/code/meshchat-server/docs/API.md)。
 
@@ -137,6 +137,8 @@ curl -X POST http://localhost:8080/auth/login \
 ```
 
 登录成功后返回 JWT token。
+
+`GET /me/profile` 会返回当前用户的 `peer_id`，前台可以通过 `PATCH /users/{peer_id}/profile` 更新自己的资料。
 
 ## WebSocket 使用
 

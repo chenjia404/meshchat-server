@@ -41,7 +41,7 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, userID uint64, input
 		return nil, err
 	}
 
-	if err := validateProfileFieldLengths(input.Username, input.DisplayName, input.Bio); err != nil {
+	if err := validateProfileFieldLengths(input.DisplayName, input.Bio); err != nil {
 		return nil, err
 	}
 	if input.AvatarCID != "" {
@@ -50,7 +50,6 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, userID uint64, input
 		}
 	}
 
-	user.Username = strings.TrimSpace(input.Username)
 	user.DisplayName = strings.TrimSpace(input.DisplayName)
 	user.AvatarCID = strings.TrimSpace(input.AvatarCID)
 	user.Bio = strings.TrimSpace(input.Bio)
@@ -60,12 +59,26 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, userID uint64, input
 	user.ProfileVersion++
 
 	if err := s.users.UpdateProfile(ctx, user); err != nil {
-		if duplicateConstraintError(err) {
-			return nil, apperrors.New(409, "username_taken", "username already exists")
-		}
 		return nil, err
 	}
 
 	publicUser := toPublicUser(*user)
 	return &publicUser, nil
+}
+
+func (s *ProfileService) UpdateProfileByPeerID(ctx context.Context, userID uint64, peerID string, input UpdateProfileInput) (*PublicUser, error) {
+	if strings.TrimSpace(peerID) == "" {
+		return nil, apperrors.New(400, "invalid_peer_id", "peer_id is required")
+	}
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "user_not_found", "user not found")
+		}
+		return nil, err
+	}
+	if user.PeerID != strings.TrimSpace(peerID) {
+		return nil, apperrors.New(403, "forbidden", "peer_id does not match current user")
+	}
+	return s.UpdateProfile(ctx, userID, input)
 }

@@ -70,12 +70,12 @@ func (h *Handler) getMyGroups(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (h *Handler) patchMyProfile(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) patchUserProfileByPeerID(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateProfileInput
 	if !decodeBody(w, r, &request) {
 		return
 	}
-	response, err := h.profile.UpdateProfile(r.Context(), currentUserID(r), request)
+	response, err := h.profile.UpdateProfileByPeerID(r.Context(), currentUserID(r), chi.URLParam(r, "peer_id"), request)
 	if err != nil {
 		writeError(w, err)
 		return

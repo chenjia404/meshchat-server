@@ -16,7 +16,7 @@
 - 请求体和响应体均为 `application/json`
 - 时间字段统一使用 RFC3339 格式的 UTC 时间字符串
 - 除登录相关接口外，所有 HTTP API 都要求 Bearer Token
-- 外部接口不会返回 `peer_id`
+- 用户资料相关接口会返回 `peer_id`，用于按稳定标识更新资料
 - 群创建权限受 `SERVER_MODE` 控制
 
 ### 1.3 鉴权头
@@ -197,11 +197,10 @@ Authorization: Bearer <jwt>
 
 `PATCH /admin/users/{peer_id}`
 
-请求体与 `PATCH /me/profile` 相同：
+请求体：
 
 ```json
 {
-  "username": "alice",
   "display_name": "Alice",
   "avatar_cid": "bafy...",
   "bio": "hello",
@@ -530,6 +529,25 @@ effective_permissions =
 
 返回当前登录用户资料。
 
+返回的用户对象包含 `peer_id`。
+
+### PATCH /users/{peer_id}/profile
+
+按 `peer_id` 更新当前登录用户资料。
+
+`peer_id` 必须和当前登录用户一致。
+
+请求体：
+
+```json
+{
+  "display_name": "Alice",
+  "avatar_cid": "bafy...",
+  "bio": "hello",
+  "status": "active"
+}
+```
+
 ### GET /me/groups
 
 返回当前用户所有 `active` 加入的群聊。
@@ -540,22 +558,6 @@ effective_permissions =
 - `offset`
 
 返回 `GroupView` 列表。
-
-### PATCH /me/profile
-
-请求体：
-
-```json
-{
-  "username": "alice",
-  "display_name": "Alice",
-  "avatar_cid": "bafy...",
-  "bio": "hello",
-  "status": "active"
-}
-```
-
-返回更新后的 `User` 对象。
 
 ## 6.3 群组
 
