@@ -114,6 +114,11 @@ type AdminMeView struct {
 	Username string `json:"username"`
 }
 
+type AdminUserView struct {
+	PeerID string `json:"peer_id"`
+	PublicUser
+}
+
 type ServerInfoView struct {
 	ServerMode string `json:"server_mode"`
 }

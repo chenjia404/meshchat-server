@@ -12,7 +12,7 @@ type Group struct {
 	GroupID                uuid.UUID  `gorm:"type:uuid;uniqueIndex;not null" json:"group_id"`
 	Title                  string     `gorm:"size:256;not null" json:"title"`
 	About                  string     `gorm:"size:2048" json:"about"`
-	AvatarCID              string     `gorm:"size:255" json:"avatar_cid"`
+	AvatarCID              string     `gorm:"column:avatar_cid;size:255" json:"avatar_cid"`
 	OwnerUserID            uint64     `gorm:"not null;index" json:"owner_user_id"`
 	OwnerUser              ServerUser `gorm:"foreignKey:OwnerUserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"-"`
 	MemberListVisibility   string     `gorm:"size:32;not null;default:'visible'" json:"member_list_visibility"`

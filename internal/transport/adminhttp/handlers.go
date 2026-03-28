@@ -49,6 +49,19 @@ func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) patchUserProfile(w http.ResponseWriter, r *http.Request) {
+	var request service.UpdateProfileInput
+	if !decodeBody(w, r, &request) {
+		return
+	}
+	response, err := h.admin.UpdateUserProfileByPeerID(r.Context(), chi.URLParam(r, "peer_id"), request)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *Handler) getGroups(w http.ResponseWriter, r *http.Request) {
 	limit, offset := parseLimitOffset(r)
 	response, err := h.admin.ListGroups(r.Context(), limit, offset)

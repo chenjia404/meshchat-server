@@ -167,6 +167,7 @@ Authorization: Bearer <jwt>
 
 - `GET /admin/me`
 - `GET /admin/users`
+- `PATCH /admin/users/{peer_id}`
 - `GET /admin/groups`
 - `POST /admin/groups`
 - `GET /admin/groups/{group_id}`
@@ -179,7 +180,8 @@ Authorization: Bearer <jwt>
 
 说明：
 
-- `GET /admin/users` 返回用户列表
+- `GET /admin/users` 返回用户列表，包含 `peer_id`
+- `PATCH /admin/users/{peer_id}` 按 `peer_id` 修改用户资料
 - `GET /admin/groups` 返回群列表
 - `POST /admin/groups` 创建群聊
 - `PATCH /admin/groups/{group_id}` 修改群资料和群配置
@@ -190,6 +192,24 @@ Authorization: Bearer <jwt>
 - `GET /admin/groups/{group_id}/messages` 查看群聊天记录
 
 ### 3.3 管理员操作请求体
+
+#### 修改用户资料
+
+`PATCH /admin/users/{peer_id}`
+
+请求体与 `PATCH /me/profile` 相同：
+
+```json
+{
+  "username": "alice",
+  "display_name": "Alice",
+  "avatar_cid": "bafy...",
+  "bio": "hello",
+  "status": "active"
+}
+```
+
+`peer_id` 是稳定标识，用来定位要更新的用户。
 
 #### 设置群管理员
 

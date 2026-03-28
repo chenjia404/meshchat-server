@@ -60,7 +60,7 @@ func (s *AdminService) Me() *AdminMeView {
 	return &AdminMeView{Username: s.username}
 }
 
-func (s *AdminService) ListUsers(ctx context.Context, limit, offset int) ([]PublicUser, error) {
+func (s *AdminService) ListUsers(ctx context.Context, limit, offset int) ([]AdminUserView, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -68,11 +68,53 @@ func (s *AdminService) ListUsers(ctx context.Context, limit, offset int) ([]Publ
 	if err != nil {
 		return nil, err
 	}
-	views := make([]PublicUser, 0, len(users))
+	views := make([]AdminUserView, 0, len(users))
 	for _, user := range users {
-		views = append(views, toPublicUser(user))
+		views = append(views, AdminUserView{
+			PeerID:     user.PeerID,
+			PublicUser: toPublicUser(user),
+		})
 	}
 	return views, nil
+}
+
+// UpdateUserProfileByPeerID updates a user profile using peer_id as the stable identifier.
+func (s *AdminService) UpdateUserProfileByPeerID(ctx context.Context, peerID string, input UpdateProfileInput) (*PublicUser, error) {
+	user, err := s.users.GetByPeerID(ctx, peerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "user_not_found", "user not found")
+		}
+		return nil, err
+	}
+
+	if err := validateProfileFieldLengths(input.Username, input.DisplayName, input.Bio); err != nil {
+		return nil, err
+	}
+	if input.AvatarCID != "" {
+		if err := s.ipfs.ValidateCID(input.AvatarCID); err != nil {
+			return nil, payloadValidationError("avatar_cid is invalid")
+		}
+	}
+
+	user.Username = strings.TrimSpace(input.Username)
+	user.DisplayName = strings.TrimSpace(input.DisplayName)
+	user.AvatarCID = strings.TrimSpace(input.AvatarCID)
+	user.Bio = strings.TrimSpace(input.Bio)
+	if input.Status != "" {
+		user.Status = strings.TrimSpace(input.Status)
+	}
+	user.ProfileVersion++
+
+	if err := s.users.UpdateProfile(ctx, user); err != nil {
+		if duplicateConstraintError(err) {
+			return nil, apperrors.New(409, "username_taken", "username already exists")
+		}
+		return nil, err
+	}
+
+	publicUser := toPublicUser(*user)
+	return &publicUser, nil
 }
 
 func (s *AdminService) ListGroups(ctx context.Context, limit, offset int) ([]GroupView, error) {

@@ -38,6 +38,7 @@ func NewRouter(handler *Handler, jwtManager *auth.AdminJWTManager, recoverer fun
 		r.Use(appmiddleware.RequireAdminAuth(jwtManager))
 		r.Get("/admin/me", handler.getMe)
 		r.Get("/admin/users", handler.getUsers)
+		r.Patch("/admin/users/{peer_id}", handler.patchUserProfile)
 		r.Get("/admin/groups", handler.getGroups)
 		r.Post("/admin/groups", handler.postGroups)
 		r.Get("/admin/groups/{group_id}", handler.getGroup)

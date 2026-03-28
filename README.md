@@ -238,6 +238,8 @@ curl -X POST http://localhost:8080/files \
 - `POST /groups/{group_id}/leave` 支持主动退出群聊，退出后不再拥有该群权限；公开群后续仍可重新加入。
 - 管理后台运行在独立端口，默认 `ADMIN_HTTP_ADDR=:8081`，使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录。
 - 浏览器直接访问后台端口根路径即可打开管理页面。
+- 管理后台修改用户资料时使用 `peer_id` 定位用户，接口为 `PATCH /admin/users/{peer_id}`。
+- 管理后台的用户列表会显示 `peer_id`，便于直接定位要修改的用户。
 - 管理后台支持 `POST /admin/groups/{group_id}/members/{user_id}/admin` 设置或取消群管理员。
 - 管理后台支持 `POST /admin/groups/{group_id}/transfer-owner` 转让群主给本群活跃成员。
 - `peer_id` 仅用于认证和内部存储，不会出现在 HTTP/WS 响应中。

@@ -142,9 +142,19 @@ const adminPageHTML = `<!doctype html>
           <div class="subtle">展示服务器上的用户记录。</div>
           <div class="table-wrap" style="margin-top:12px;">
             <table>
-              <thead><tr><th>ID</th><th>用户名</th><th>昵称</th><th>状态</th></tr></thead>
-              <tbody id="usersBody"><tr><td colspan="4" class="muted">暂无数据</td></tr></tbody>
+              <thead><tr><th>Peer ID</th><th>ID</th><th>用户名</th><th>昵称</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="usersBody"><tr><td colspan="6" class="muted">暂无数据</td></tr></tbody>
             </table>
+          </div>
+          <div class="stack" style="margin-top:12px;">
+            <div class="mini">按 peer_id 修改用户资料</div>
+            <input id="editUserPeerID" placeholder="peer_id" readonly>
+            <input id="editUserUsername" placeholder="用户名">
+            <input id="editUserDisplayName" placeholder="昵称">
+            <input id="editUserAvatarCID" placeholder="头像 CID">
+            <textarea id="editUserBio" placeholder="简介"></textarea>
+            <input id="editUserStatus" placeholder="状态">
+            <button onclick="saveUserProfile()">保存用户资料</button>
           </div>
         </div>
 
@@ -336,10 +346,51 @@ const adminPageHTML = `<!doctype html>
         const data = await api('/admin/users?limit=100');
         const body = document.getElementById('usersBody');
         if (!data.length) {
-          body.innerHTML = '<tr><td colspan="4" class="muted">暂无数据</td></tr>';
+          body.innerHTML = '<tr><td colspan="6" class="muted">暂无数据</td></tr>';
           return;
         }
-        body.innerHTML = data.map(u => '<tr><td>' + u.id + '</td><td>' + escapeHtml(u.username) + '</td><td>' + escapeHtml(u.display_name || '') + '</td><td>' + escapeHtml(u.status || '') + '</td></tr>').join('');
+        body.innerHTML = data.map(u => '<tr>' +
+          '<td>' + escapeHtml(u.peer_id || '') + '</td>' +
+          '<td>' + escapeHtml(u.id) + '</td>' +
+          '<td>' + escapeHtml(u.username || '') + '</td>' +
+          '<td>' + escapeHtml(u.display_name || '') + '</td>' +
+          '<td>' + escapeHtml(u.status || '') + '</td>' +
+          '<td><button class="secondary" onclick="fillUserForm(\'' + escapeAttr(u.peer_id || '') + '\', \'' + escapeAttr(u.username || '') + '\', \'' + escapeAttr(u.display_name || '') + '\', \'' + escapeAttr(u.avatar_cid || '') + '\', \'' + escapeAttr(u.bio || '') + '\', \'' + escapeAttr(u.status || '') + '\')">编辑</button></td>' +
+          '</tr>').join('');
+      } catch (err) {
+        handleAuthError(err);
+      }
+    }
+
+    function fillUserForm(peerID, username, displayName, avatarCID, bio, status) {
+      document.getElementById('editUserPeerID').value = peerID || '';
+      document.getElementById('editUserUsername').value = username || '';
+      document.getElementById('editUserDisplayName').value = displayName || '';
+      document.getElementById('editUserAvatarCID').value = avatarCID || '';
+      document.getElementById('editUserBio').value = bio || '';
+      document.getElementById('editUserStatus').value = status || '';
+    }
+
+    async function saveUserProfile() {
+      const peerID = document.getElementById('editUserPeerID').value.trim();
+      if (!peerID) {
+        alert('请先选择一个用户');
+        return;
+      }
+      try {
+        const payload = {
+          username: document.getElementById('editUserUsername').value.trim(),
+          display_name: document.getElementById('editUserDisplayName').value.trim(),
+          avatar_cid: document.getElementById('editUserAvatarCID').value.trim(),
+          bio: document.getElementById('editUserBio').value.trim(),
+          status: document.getElementById('editUserStatus').value.trim()
+        };
+        await api('/admin/users/' + encodeURIComponent(peerID), {
+          method: 'PATCH',
+          body: JSON.stringify(payload)
+        });
+        await loadUsers();
+        alert('用户资料已保存');
       } catch (err) {
         handleAuthError(err);
       }
