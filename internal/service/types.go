@@ -51,6 +51,10 @@ type JoinGroupInput struct {
 	// Reserved for future expansion, such as invite tokens.
 }
 
+type InviteGroupMemberInput struct {
+	UserID uint64 `json:"user_id"`
+}
+
 type ForwardReferenceView struct {
 	State   string          `json:"state"`
 	Message *MessageSummary `json:"message,omitempty"`

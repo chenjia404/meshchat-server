@@ -61,6 +61,7 @@ func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(std
 		r.Patch("/groups/{group_id}", handler.patchGroup)
 		r.Post("/groups/{group_id}/transfer-owner", handler.postGroupTransferOwner)
 		r.Post("/groups/{group_id}/dissolve", handler.postGroupDissolve)
+		r.Post("/groups/{group_id}/members/{user_id}/invite", handler.postMemberInvite)
 		r.Patch("/groups/{group_id}/message-policy", handler.patchMessagePolicy)
 		r.Get("/groups/{group_id}/members", handler.getGroupMembers)
 		r.Post("/groups/{group_id}/members/{user_id}/admin", handler.postMemberAdmin)

@@ -72,7 +72,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 
 	authService := service.NewAuthService(userRepo, redisClient, jwtManager, auth.NewLibP2PVerifier(), cfg.ChallengeTTL)
 	profileService := service.NewProfileService(userRepo, ipfsClient)
-	groupService := service.NewGroupService(groupRepo, redisBus, ipfsClient, serverAdmins, cfg.ServerMode)
+	groupService := service.NewGroupService(groupRepo, userRepo, redisBus, ipfsClient, serverAdmins, cfg.ServerMode)
 	messageService := service.NewMessageService(groupRepo, messageRepo, redisClient, ipfsClient, redisBus)
 	fileService := service.NewFileService(fileRepo, ipfsClient)
 	adminService := service.NewAdminService(userRepo, groupRepo, messageService, ipfsClient, redisBus, adminJWTManager, cfg.AdminUsername, cfg.AdminPassword)

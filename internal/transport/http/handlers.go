@@ -147,6 +147,20 @@ func (h *Handler) postGroupDissolve(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) postMemberInvite(w http.ResponseWriter, r *http.Request) {
+	targetUserID, err := parseUintParam(r, "user_id")
+	if err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		return
+	}
+	response, err := h.groups.InviteMember(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), targetUserID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *Handler) patchMessagePolicy(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateMessagePolicyInput
 	if !decodeBody(w, r, &request) {

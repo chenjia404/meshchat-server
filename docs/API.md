@@ -529,6 +529,24 @@ effective_permissions =
 
 返回当前成员对象。
 
+### POST /groups/{group_id}/members/{user_id}/invite
+
+权限要求：
+
+- 调用者必须是服务器管理员，或者该群的活跃群主/管理员
+- 目标用户必须存在
+
+无请求体。
+
+说明：
+
+- 该接口用于主动邀请用户进入群聊
+- 当前实现不会生成“待接受邀请”，邀请成功后会直接将目标用户设为 `active`
+- 如果目标用户之前是 `left` 或 `kicked`，会被重新激活
+- `banned` 成员不能通过该接口重新加入
+
+返回当前成员对象。
+
 ### POST /groups/{group_id}/leave
 
 权限要求：

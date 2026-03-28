@@ -21,15 +21,17 @@ type EventPublisher interface {
 
 type GroupService struct {
 	groups    *repo.GroupRepo
+	users     *repo.UserRepo
 	publisher EventPublisher
 	ipfs      ipfs.Client
 	admins    *ServerAdminService
 	mode      string
 }
 
-func NewGroupService(groups *repo.GroupRepo, publisher EventPublisher, ipfs ipfs.Client, admins *ServerAdminService, mode string) *GroupService {
+func NewGroupService(groups *repo.GroupRepo, users *repo.UserRepo, publisher EventPublisher, ipfs ipfs.Client, admins *ServerAdminService, mode string) *GroupService {
 	return &GroupService{
 		groups:    groups,
+		users:     users,
 		publisher: publisher,
 		ipfs:      ipfs,
 		admins:    admins,
@@ -182,6 +184,139 @@ func (s *GroupService) JoinGroup(ctx context.Context, userID uint64, groupID str
 		return nil, err
 	}
 	view := s.toMemberView(*group, *loaded)
+	return &view, nil
+}
+
+func (s *GroupService) InviteMember(ctx context.Context, userID uint64, groupID string, targetUserID uint64) (*GroupMemberView, error) {
+	if targetUserID == 0 {
+		return nil, apperrors.New(400, "invalid_user_id", "target user_id is required")
+	}
+	if targetUserID == userID {
+		return nil, apperrors.New(400, "invalid_user_id", "cannot invite yourself")
+	}
+
+	group, err := s.groups.GetByGroupID(ctx, groupID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "group_not_found", "group not found")
+		}
+		return nil, err
+	}
+	if group.Status != model.GroupStatusActive {
+		return nil, apperrors.New(403, "group_closed", "group is closed")
+	}
+
+	if _, err := s.users.GetByID(ctx, targetUserID); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "user_not_found", "target user not found")
+		}
+		return nil, err
+	}
+
+	isServerAdmin, err := s.admins.IsServerAdmin(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isServerAdmin {
+		inviter, err := s.groups.GetMember(ctx, group.ID, userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, apperrors.New(403, "not_group_member", "user is not an active group member")
+			}
+			return nil, err
+		}
+		if inviter.Status != model.MemberStatusActive {
+			return nil, apperrors.New(403, "member_inactive", "member is not active in this group")
+		}
+		if inviter.Role != model.RoleOwner && inviter.Role != model.RoleAdmin {
+			return nil, apperrors.New(403, "forbidden", "only group owners, admins or server admins can invite members")
+		}
+	}
+
+	if err := s.groups.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		lockedGroup, err := s.groups.GetByIDForUpdate(ctx, tx, group.ID)
+		if err != nil {
+			return err
+		}
+		if lockedGroup.Status != model.GroupStatusActive {
+			return apperrors.New(403, "group_closed", "group is closed")
+		}
+		if !isServerAdmin {
+			lockedInviter, err := s.groups.GetMemberForUpdate(ctx, tx, group.ID, userID)
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					return apperrors.New(403, "not_group_member", "user is not an active group member")
+				}
+				return err
+			}
+			if lockedInviter.Status != model.MemberStatusActive {
+				return apperrors.New(403, "member_inactive", "member is not active in this group")
+			}
+			if lockedInviter.Role != model.RoleOwner && lockedInviter.Role != model.RoleAdmin {
+				return apperrors.New(403, "forbidden", "only group owners, admins or server admins can invite members")
+			}
+		}
+
+		targetMember, err := s.groups.GetMemberForUpdate(ctx, tx, group.ID, targetUserID)
+		if err == nil {
+			switch targetMember.Status {
+			case model.MemberStatusBanned:
+				return apperrors.New(403, "member_banned", "member is banned")
+			case model.MemberStatusActive:
+				return nil
+			default:
+				targetMember.Role = model.RoleMember
+				targetMember.Status = model.MemberStatusActive
+				targetMember.JoinedAt = time.Now().UTC()
+				targetMember.MutedUntil = nil
+				targetMember.PermissionsAllow = 0
+				targetMember.PermissionsDeny = 0
+				if err := tx.WithContext(ctx).Model(targetMember).Updates(map[string]any{
+					"role":              targetMember.Role,
+					"status":            targetMember.Status,
+					"joined_at":         targetMember.JoinedAt,
+					"muted_until":       targetMember.MutedUntil,
+					"permissions_allow": targetMember.PermissionsAllow,
+					"permissions_deny":  targetMember.PermissionsDeny,
+				}).Error; err != nil {
+					return err
+				}
+				return nil
+			}
+		}
+		if err != gorm.ErrRecordNotFound {
+			return err
+		}
+
+		targetMember = &model.GroupMember{
+			GroupID:          lockedGroup.ID,
+			UserID:           targetUserID,
+			Role:             model.RoleMember,
+			Status:           model.MemberStatusActive,
+			JoinedAt:         time.Now().UTC(),
+			PermissionsAllow: 0,
+			PermissionsDeny:  0,
+		}
+		if err := tx.WithContext(ctx).Create(targetMember).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	member, err := s.groups.GetMember(ctx, group.ID, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publisher.Publish(ctx, events.Envelope{
+		Type:    events.EventGroupMemberUpdated,
+		GroupID: group.GroupID.String(),
+		UserID:  targetUserID,
+		At:      time.Now().UTC(),
+	})
+	view := s.toMemberView(*group, *member)
 	return &view, nil
 }
 
