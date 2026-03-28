@@ -1,0 +1,11 @@
+.gopath/
+.gomodcache/
+meshchat-server
+
+docker-compose/postgres-data/*
+!docker-compose/postgres-data/.gitkeep
+docker-compose/redis-data/*
+!docker-compose/redis-data/.gitkeep
+docker-compose/ipfs-data/*
+!docker-compose/ipfs-data/.gitkeep
+
