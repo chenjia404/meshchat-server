@@ -239,6 +239,13 @@ const adminPageHTML = `<!doctype html>
             <button class="secondary" onclick="loadMembers()">刷新成员</button>
             <button class="secondary" onclick="loadMessages()">刷新聊天</button>
           </div>
+          <div class="toolbar" style="margin-top:12px; align-items:center; gap:8px;">
+            <input id="memberTargetUserId" placeholder="成员 user_id" style="max-width:180px;">
+            <button class="secondary" onclick="setMemberAdmin(true)">设为管理员</button>
+            <button class="secondary" onclick="setMemberAdmin(false)">取消管理员</button>
+            <input id="ownerTargetUserId" placeholder="新群主 user_id" style="max-width:180px;">
+            <button onclick="transferOwner()">转让群主</button>
+          </div>
           <div class="stack">
             <div>
               <div class="mini">成员列表</div>
@@ -381,6 +388,8 @@ const adminPageHTML = `<!doctype html>
         currentGroup = group;
         document.getElementById('selectedGroupHint').textContent = '当前群: ' + group.group_id;
         document.getElementById('selectedGroupMeta').textContent = group.title + ' / ' + group.status;
+        document.getElementById('memberTargetUserId').value = '';
+        document.getElementById('ownerTargetUserId').value = group.owner_user && group.owner_user.id ? group.owner_user.id : '';
         document.getElementById('editTitle').value = group.title || '';
         document.getElementById('editAbout').value = group.about || '';
         document.getElementById('editAvatarCID').value = group.avatar_cid || '';
@@ -445,6 +454,52 @@ const adminPageHTML = `<!doctype html>
       try {
         const data = await api('/admin/groups/' + encodeURIComponent(currentGroup.group_id) + '/members');
         document.getElementById('membersView').textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        handleAuthError(err);
+      }
+    }
+
+    async function setMemberAdmin(isAdmin) {
+      if (!currentGroup) {
+        alert('请先选择一个群聊');
+        return;
+      }
+      const userID = Number(document.getElementById('memberTargetUserId').value || 0);
+      if (!userID) {
+        alert('请输入成员 user_id');
+        return;
+      }
+      try {
+        await api('/admin/groups/' + encodeURIComponent(currentGroup.group_id) + '/members/' + encodeURIComponent(String(userID)) + '/admin', {
+          method: 'POST',
+          body: JSON.stringify({ is_admin: isAdmin })
+        });
+        await loadMembers();
+        alert(isAdmin ? '已设为管理员' : '已取消管理员');
+      } catch (err) {
+        handleAuthError(err);
+      }
+    }
+
+    async function transferOwner() {
+      if (!currentGroup) {
+        alert('请先选择一个群聊');
+        return;
+      }
+      const userID = Number(document.getElementById('ownerTargetUserId').value || 0);
+      if (!userID) {
+        alert('请输入新群主 user_id');
+        return;
+      }
+      if (!confirm('确认把群主转让给 user_id=' + userID + ' ?')) return;
+      try {
+        await api('/admin/groups/' + encodeURIComponent(currentGroup.group_id) + '/transfer-owner', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userID })
+        });
+        await selectGroup(currentGroup.group_id);
+        await loadGroups();
+        alert('已转让群主');
       } catch (err) {
         handleAuthError(err);
       }

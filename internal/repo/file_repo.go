@@ -22,7 +22,7 @@ func (r *FileRepo) Create(ctx context.Context, file *model.File) error {
 
 func (r *FileRepo) GetByCID(ctx context.Context, cid string) (*model.File, error) {
 	var file model.File
-	if err := r.db.WithContext(ctx).First(&file, "cid = ?", cid).Error; err != nil {
+	if err := r.db.WithContext(ctx).First(&file, "c_id = ?", cid).Error; err != nil {
 		return nil, err
 	}
 	return &file, nil

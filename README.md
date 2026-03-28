@@ -31,6 +31,18 @@ Dockerfile
 Makefile
 README.md
 ```
+## 构建镜像
+```shell
+# 构建镜像
+docker build -t meshchat-server  .
+
+# 上传
+docker tag meshchat-server chenjia404/meshchat-server
+docker push chenjia404/meshchat-server
+
+```
+
+
 
 ## 快速启动
 
@@ -226,6 +238,8 @@ curl -X POST http://localhost:8080/files \
 - `POST /groups/{group_id}/leave` 支持主动退出群聊，退出后不再拥有该群权限；公开群后续仍可重新加入。
 - 管理后台运行在独立端口，默认 `ADMIN_HTTP_ADDR=:8081`，使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录。
 - 浏览器直接访问后台端口根路径即可打开管理页面。
+- 管理后台支持 `POST /admin/groups/{group_id}/members/{user_id}/admin` 设置或取消群管理员。
+- 管理后台支持 `POST /admin/groups/{group_id}/transfer-owner` 转让群主给本群活跃成员。
 - `peer_id` 仅用于认证和内部存储，不会出现在 HTTP/WS 响应中。
 - `forward` 为引用型转发，不复制原消息快照。
 - TTL 与 slow mode 都按群当前配置动态生效。

@@ -32,6 +32,10 @@ func Run(ctx context.Context, db *gorm.DB) error {
 }
 
 func ensureCanonicalGroupTables(tx *gorm.DB) error {
+	if err := renameLegacyGroupAvatarColumn(tx); err != nil {
+		return err
+	}
+
 	legacyGroupSchema, err := hasLegacyGroupIdentifier(tx)
 	if err != nil {
 		return err
@@ -57,7 +61,7 @@ func ensureCanonicalGroupTables(tx *gorm.DB) error {
 			"group_id" uuid NOT NULL,
 			"title" varchar(256) NOT NULL,
 			"about" varchar(2048),
-			"avatar_c_id" varchar(255),
+			"avatar_cid" varchar(255),
 			"owner_user_id" bigint NOT NULL,
 			"member_list_visibility" varchar(32) NOT NULL DEFAULT 'visible',
 			"join_mode" varchar(32) NOT NULL DEFAULT 'invite_only',
@@ -156,4 +160,39 @@ func hasLegacyGroupIdentifier(tx *gorm.DB) (bool, error) {
 		return false, nil
 	}
 	return dataType != "uuid", nil
+}
+
+func renameLegacyGroupAvatarColumn(tx *gorm.DB) error {
+	var hasLegacyColumn bool
+	if err := tx.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'groups'
+			  AND column_name = 'avatar_c_id'
+		)
+	`).Scan(&hasLegacyColumn).Error; err != nil {
+		return err
+	}
+	if !hasLegacyColumn {
+		return nil
+	}
+
+	var hasCanonicalColumn bool
+	if err := tx.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'groups'
+			  AND column_name = 'avatar_cid'
+		)
+	`).Scan(&hasCanonicalColumn).Error; err != nil {
+		return err
+	}
+	if hasCanonicalColumn {
+		return tx.Exec(`ALTER TABLE "groups" DROP COLUMN IF EXISTS "avatar_c_id"`).Error
+	}
+	return tx.Exec(`ALTER TABLE "groups" RENAME COLUMN "avatar_c_id" TO "avatar_cid"`).Error
 }

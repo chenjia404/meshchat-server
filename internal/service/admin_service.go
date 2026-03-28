@@ -226,6 +226,154 @@ func (s *AdminService) ListMessages(ctx context.Context, groupID string, beforeS
 	return s.messages.ListMessagesForAdmin(ctx, groupID, beforeSeq, limit)
 }
 
+func (s *AdminService) SetGroupAdmin(ctx context.Context, groupID string, targetUserID uint64, input SetGroupAdminInput) (*GroupMemberView, error) {
+	group, err := s.groups.GetByGroupID(ctx, groupID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "group_not_found", "group not found")
+		}
+		return nil, err
+	}
+	if group.Status != model.GroupStatusActive {
+		return nil, apperrors.New(403, "group_closed", "group is closed")
+	}
+	target, err := s.groups.GetMember(ctx, group.ID, targetUserID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "member_not_found", "target member not found")
+		}
+		return nil, err
+	}
+	if target.Status != model.MemberStatusActive {
+		return nil, apperrors.New(400, "member_inactive", "only active members can be promoted to admin")
+	}
+	if target.Role == model.RoleOwner {
+		return nil, apperrors.New(403, "forbidden", "owner role cannot be modified")
+	}
+
+	if input.IsAdmin {
+		target.Role = model.RoleAdmin
+	} else if target.Role == model.RoleAdmin {
+		target.Role = model.RoleMember
+	}
+
+	if err := s.groups.UpdateMember(ctx, target); err != nil {
+		return nil, err
+	}
+
+	_ = s.publisher.Publish(ctx, events.Envelope{
+		Type:    events.EventGroupMemberUpdated,
+		GroupID: group.GroupID.String(),
+		UserID:  targetUserID,
+		At:      time.Now().UTC(),
+	})
+
+	view := s.toAdminMemberView(*group, *target)
+	return &view, nil
+}
+
+func (s *AdminService) TransferGroupOwnership(ctx context.Context, groupID string, targetUserID uint64) (*GroupView, error) {
+	group, err := s.groups.GetByGroupID(ctx, groupID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(404, "group_not_found", "group not found")
+		}
+		return nil, err
+	}
+	if group.Status != model.GroupStatusActive {
+		return nil, apperrors.New(403, "group_closed", "group is closed")
+	}
+	if targetUserID == 0 {
+		return nil, apperrors.New(400, "invalid_user_id", "target user_id is required")
+	}
+	if targetUserID == group.OwnerUserID {
+		owner, err := s.users.GetByID(ctx, group.OwnerUserID)
+		if err != nil {
+			return nil, err
+		}
+		group.OwnerUser = *owner
+		view := s.toAdminGroupView(*group, model.GroupMember{Role: model.RoleOwner})
+		return &view, nil
+	}
+
+	if err := s.groups.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		lockedGroup, err := s.groups.GetByIDForUpdate(ctx, tx, group.ID)
+		if err != nil {
+			return err
+		}
+		currentOwner, err := s.groups.GetMemberForUpdate(ctx, tx, group.ID, lockedGroup.OwnerUserID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return apperrors.New(404, "member_not_found", "current owner membership not found")
+			}
+			return err
+		}
+		target, err := s.groups.GetMemberForUpdate(ctx, tx, group.ID, targetUserID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return apperrors.New(404, "member_not_found", "target member not found")
+			}
+			return err
+		}
+		if target.Status != model.MemberStatusActive {
+			return apperrors.New(400, "member_inactive", "only active members can become group owner")
+		}
+
+		currentOwner.Role = model.RoleAdmin
+		target.Role = model.RoleOwner
+		lockedGroup.OwnerUserID = target.UserID
+		lockedGroup.SettingsVersion++
+
+		if err := tx.WithContext(ctx).Model(currentOwner).Update("role", currentOwner.Role).Error; err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Model(target).Update("role", target.Role).Error; err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Model(lockedGroup).Updates(map[string]any{
+			"owner_user_id":    lockedGroup.OwnerUserID,
+			"settings_version": lockedGroup.SettingsVersion,
+		}).Error; err != nil {
+			return err
+		}
+
+		group = lockedGroup
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	group, err = s.groups.GetByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publisher.Publish(ctx, events.Envelope{
+		Type:    events.EventGroupSettingsUpdated,
+		GroupID: group.GroupID.String(),
+		At:      time.Now().UTC(),
+	})
+	_ = s.publisher.Publish(ctx, events.Envelope{
+		Type:    events.EventGroupMemberUpdated,
+		GroupID: group.GroupID.String(),
+		UserID:  group.OwnerUserID,
+		At:      time.Now().UTC(),
+	})
+	_ = s.publisher.Publish(ctx, events.Envelope{
+		Type:    events.EventGroupMemberUpdated,
+		GroupID: group.GroupID.String(),
+		UserID:  targetUserID,
+		At:      time.Now().UTC(),
+	})
+
+	owner, err := s.users.GetByID(ctx, group.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	group.OwnerUser = *owner
+	view := s.toAdminGroupView(*group, model.GroupMember{Role: model.RoleOwner})
+	return &view, nil
+}
+
 func (s *AdminService) createGroupAsOwner(ctx context.Context, ownerUserID uint64, input CreateGroupInput) (*GroupView, error) {
 	if strings.TrimSpace(input.Title) == "" {
 		return nil, apperrors.New(400, "invalid_title", "title is required")

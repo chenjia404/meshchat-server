@@ -171,6 +171,8 @@ Authorization: Bearer <jwt>
 - `POST /admin/groups`
 - `GET /admin/groups/{group_id}`
 - `PATCH /admin/groups/{group_id}`
+- `POST /admin/groups/{group_id}/members/{user_id}/admin`
+- `POST /admin/groups/{group_id}/transfer-owner`
 - `POST /admin/groups/{group_id}/dissolve`
 - `GET /admin/groups/{group_id}/members`
 - `GET /admin/groups/{group_id}/messages`
@@ -181,9 +183,49 @@ Authorization: Bearer <jwt>
 - `GET /admin/groups` 返回群列表
 - `POST /admin/groups` 创建群聊
 - `PATCH /admin/groups/{group_id}` 修改群资料和群配置
+- `POST /admin/groups/{group_id}/members/{user_id}/admin` 设置或取消某个成员的群管理员权限
+- `POST /admin/groups/{group_id}/transfer-owner` 将群主转让给本群其他活跃成员
 - `POST /admin/groups/{group_id}/dissolve` 解散群聊
 - `GET /admin/groups/{group_id}/members` 查看群成员
 - `GET /admin/groups/{group_id}/messages` 查看群聊天记录
+
+### 3.3 管理员操作请求体
+
+#### 设置群管理员
+
+`POST /admin/groups/{group_id}/members/{user_id}/admin`
+
+请求体：
+
+```json
+{
+  "is_admin": true
+}
+```
+
+将成员设为群管理员。
+
+```json
+{
+  "is_admin": false
+}
+```
+
+取消群管理员权限，目标成员会回到普通成员角色。
+
+#### 转让群主
+
+`POST /admin/groups/{group_id}/transfer-owner`
+
+请求体：
+
+```json
+{
+  "user_id": 123
+}
+```
+
+将群主转让给指定的本群活跃成员。转让后原群主自动降为管理员。
 
 ## 4. 公共数据结构
 

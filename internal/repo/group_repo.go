@@ -241,6 +241,9 @@ func (r *GroupRepo) ensureTable() error {
 			return err
 		}
 	}
+	if err := r.renameLegacyGroupAvatarColumn(); err != nil {
+		return err
+	}
 	// Build the dependency chain in order so foreign keys do not fail on
 	// partially migrated databases.
 	if r.db.Migrator().HasTable(&model.ServerUser{}) &&
@@ -273,7 +276,7 @@ func (r *GroupRepo) ensureCanonicalGroupTable() error {
 			"group_id" uuid NOT NULL,
 			"title" varchar(256) NOT NULL,
 			"about" varchar(2048),
-			"avatar_c_id" varchar(255),
+			"avatar_cid" varchar(255),
 			"owner_user_id" bigint NOT NULL,
 			"member_list_visibility" varchar(32) NOT NULL DEFAULT 'visible',
 			"join_mode" varchar(32) NOT NULL DEFAULT 'invite_only',
@@ -346,4 +349,39 @@ func (r *GroupRepo) hasLegacyGroupIdentifier() (bool, error) {
 		return false, nil
 	}
 	return dataType.String != "uuid", nil
+}
+
+func (r *GroupRepo) renameLegacyGroupAvatarColumn() error {
+	var hasLegacyColumn bool
+	if err := r.db.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'groups'
+			  AND column_name = 'avatar_c_id'
+		)
+	`).Scan(&hasLegacyColumn).Error; err != nil {
+		return err
+	}
+	if !hasLegacyColumn {
+		return nil
+	}
+
+	var hasCanonicalColumn bool
+	if err := r.db.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'groups'
+			  AND column_name = 'avatar_cid'
+		)
+	`).Scan(&hasCanonicalColumn).Error; err != nil {
+		return err
+	}
+	if hasCanonicalColumn {
+		return r.db.Exec(`ALTER TABLE "groups" DROP COLUMN IF EXISTS "avatar_c_id"`).Error
+	}
+	return r.db.Exec(`ALTER TABLE "groups" RENAME COLUMN "avatar_c_id" TO "avatar_cid"`).Error
 }

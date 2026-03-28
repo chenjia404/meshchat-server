@@ -94,6 +94,37 @@ func (h *Handler) patchGroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *Handler) postMemberAdmin(w http.ResponseWriter, r *http.Request) {
+	targetUserID, err := strconv.ParseUint(chi.URLParam(r, "user_id"), 10, 64)
+	if err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		return
+	}
+	var request service.SetGroupAdminInput
+	if !decodeBody(w, r, &request) {
+		return
+	}
+	response, err := h.admin.SetGroupAdmin(r.Context(), chi.URLParam(r, "group_id"), targetUserID, request)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) postGroupTransferOwner(w http.ResponseWriter, r *http.Request) {
+	var request service.TransferGroupOwnershipInput
+	if !decodeBody(w, r, &request) {
+		return
+	}
+	response, err := h.admin.TransferGroupOwnership(r.Context(), chi.URLParam(r, "group_id"), request.UserID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *Handler) postGroupDissolve(w http.ResponseWriter, r *http.Request) {
 	response, err := h.admin.DissolveGroup(r.Context(), chi.URLParam(r, "group_id"))
 	if err != nil {
