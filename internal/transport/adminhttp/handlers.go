@@ -12,6 +12,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func (h *Handler) getIndex(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte(adminPageHTML))
+}
+
 func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Username string `json:"username"`

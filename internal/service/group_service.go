@@ -60,7 +60,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, userID uint64, input Cre
 	}
 
 	group := &model.Group{
-		GroupID:                uuid.NewString(),
+		GroupID:                uuid.New(),
 		Title:                  strings.TrimSpace(input.Title),
 		About:                  strings.TrimSpace(input.About),
 		AvatarCID:              strings.TrimSpace(input.AvatarCID),
@@ -87,7 +87,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, userID uint64, input Cre
 		return nil, err
 	}
 
-	view, err := s.GetGroup(ctx, userID, group.GroupID)
+	view, err := s.GetGroup(ctx, userID, group.GroupID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (s *GroupService) LeaveGroup(ctx context.Context, userID uint64, groupID st
 	}
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  userID,
 		At:      time.Now().UTC(),
 	})
@@ -282,12 +282,12 @@ func (s *GroupService) DissolveGroup(ctx context.Context, userID uint64, groupID
 
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupSettingsUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		At:      time.Now().UTC(),
 	})
 
 	return &GroupLifecycleView{
-		GroupID:         group.GroupID,
+		GroupID:         group.GroupID.String(),
 		Status:          group.Status,
 		SettingsVersion: group.SettingsVersion,
 		UpdatedAt:       group.UpdatedAt,
@@ -369,18 +369,18 @@ func (s *GroupService) TransferOwnership(ctx context.Context, userID uint64, gro
 	now := time.Now().UTC()
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupSettingsUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		At:      now,
 	})
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  userID,
 		At:      now,
 	})
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  input.UserID,
 		At:      now,
 	})
@@ -424,7 +424,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, userID uint64, groupID s
 	}
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupSettingsUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		At:      time.Now().UTC(),
 	})
 
@@ -472,7 +472,7 @@ func (s *GroupService) UpdateMessagePolicy(ctx context.Context, userID uint64, g
 	}
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupSettingsUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		At:      time.Now().UTC(),
 	})
 
@@ -517,7 +517,7 @@ func (s *GroupService) UpdateMemberPermissions(ctx context.Context, userID uint6
 
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  targetUserID,
 		At:      time.Now().UTC(),
 	})
@@ -567,7 +567,7 @@ func (s *GroupService) SetGroupAdmin(ctx context.Context, userID uint64, groupID
 
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  targetUserID,
 		At:      time.Now().UTC(),
 	})
@@ -593,7 +593,7 @@ func (s *GroupService) MuteMember(ctx context.Context, userID uint64, groupID st
 
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  targetUserID,
 		At:      time.Now().UTC(),
 	})
@@ -616,7 +616,7 @@ func (s *GroupService) BanMember(ctx context.Context, userID uint64, groupID str
 
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupMemberUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		UserID:  targetUserID,
 		At:      time.Now().UTC(),
 	})
@@ -756,7 +756,7 @@ func (s *GroupService) requireManageableTarget(ctx context.Context, userID uint6
 
 func (s *GroupService) toGroupView(group model.Group, member model.GroupMember) GroupView {
 	return GroupView{
-		GroupID:                group.GroupID,
+		GroupID:                group.GroupID.String(),
 		Title:                  group.Title,
 		About:                  group.About,
 		AvatarCID:              group.AvatarCID,

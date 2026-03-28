@@ -147,7 +147,7 @@ func (s *AdminService) UpdateGroup(ctx context.Context, groupID string, input Up
 	}
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupSettingsUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		At:      time.Now().UTC(),
 	})
 
@@ -190,12 +190,12 @@ func (s *AdminService) DissolveGroup(ctx context.Context, groupID string) (*Grou
 	}
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:    events.EventGroupSettingsUpdated,
-		GroupID: group.GroupID,
+		GroupID: group.GroupID.String(),
 		At:      time.Now().UTC(),
 	})
 
 	return &GroupLifecycleView{
-		GroupID:         group.GroupID,
+		GroupID:         group.GroupID.String(),
 		Status:          group.Status,
 		SettingsVersion: group.SettingsVersion,
 		UpdatedAt:       group.UpdatedAt,
@@ -246,7 +246,7 @@ func (s *AdminService) createGroupAsOwner(ctx context.Context, ownerUserID uint6
 	}
 
 	group := &model.Group{
-		GroupID:                uuid.NewString(),
+		GroupID:                uuid.New(),
 		Title:                  strings.TrimSpace(input.Title),
 		About:                  strings.TrimSpace(input.About),
 		AvatarCID:              strings.TrimSpace(input.AvatarCID),
@@ -273,11 +273,12 @@ func (s *AdminService) createGroupAsOwner(ctx context.Context, ownerUserID uint6
 		return nil, err
 	}
 
-	view, err := s.groups.GetByGroupID(ctx, group.GroupID)
+	ownerUser, err := s.users.GetByID(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
-	ownerView := s.toAdminGroupView(*view, *member)
+	group.OwnerUser = *ownerUser
+	ownerView := s.toAdminGroupView(*group, *member)
 	return &ownerView, nil
 }
 
@@ -319,7 +320,7 @@ func (s *AdminService) adminPeerID() string {
 
 func (s *AdminService) toAdminGroupView(group model.Group, member model.GroupMember) GroupView {
 	return GroupView{
-		GroupID:                group.GroupID,
+		GroupID:                group.GroupID.String(),
 		Title:                  group.Title,
 		About:                  group.About,
 		AvatarCID:              group.AvatarCID,

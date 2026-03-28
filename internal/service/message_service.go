@@ -149,7 +149,7 @@ func (s *MessageService) SendMessage(ctx context.Context, userID uint64, groupID
 	}
 
 	if group.MessageCooldownSeconds > 0 && !hasPermission(perms, model.PermBypassSlowmode) {
-		_ = s.redis.Set(ctx, redisx.CooldownKey(group.GroupID, userID), "1", time.Duration(group.MessageCooldownSeconds)*time.Second).Err()
+		_ = s.redis.Set(ctx, redisx.CooldownKey(group.GroupID.String(), userID), "1", time.Duration(group.MessageCooldownSeconds)*time.Second).Err()
 	}
 
 	saved, err := s.messages.GetByGroupAndMessageID(ctx, group.ID, message.MessageID)
@@ -163,7 +163,7 @@ func (s *MessageService) SendMessage(ctx context.Context, userID uint64, groupID
 
 	_ = s.publisher.Publish(ctx, events.Envelope{
 		Type:      events.EventGroupMessageCreated,
-		GroupID:   group.GroupID,
+		GroupID:   group.GroupID.String(),
 		MessageID: message.MessageID,
 		At:        time.Now().UTC(),
 	})
@@ -255,7 +255,7 @@ func (s *MessageService) BuildMessageEventForUser(ctx context.Context, viewerID 
 		return nil, err
 	}
 
-	group, member, err := s.requireActiveMembership(ctx, viewerID, message.Group.GroupID)
+	group, member, err := s.requireActiveMembership(ctx, viewerID, message.Group.GroupID.String())
 	if err != nil {
 		if apperrors.HTTPStatus(err) == 403 || apperrors.HTTPStatus(err) == 404 {
 			return nil, nil
@@ -321,7 +321,7 @@ func (s *MessageService) enforceSlowMode(ctx context.Context, group model.Group,
 	if group.MessageCooldownSeconds <= 0 || member.Role == model.RoleOwner || hasPermission(perms, model.PermBypassSlowmode) {
 		return nil
 	}
-	ttl, err := s.redis.TTL(ctx, redisx.CooldownKey(group.GroupID, member.UserID)).Result()
+	ttl, err := s.redis.TTL(ctx, redisx.CooldownKey(group.GroupID.String(), member.UserID)).Result()
 	if err != nil && err != redis.Nil {
 		return err
 	}
@@ -363,7 +363,7 @@ func (s *MessageService) validateReferences(ctx context.Context, userID uint64, 
 		if source.Status == model.MessageStatusDeleted || !isVisibleByTTL(source.Group.MessageTTLSeconds, source.CreatedAt, now) {
 			return errRecordNotVisible("forward source")
 		}
-		if _, _, err := s.requireActiveMembership(ctx, userID, source.Group.GroupID); err != nil {
+		if _, _, err := s.requireActiveMembership(ctx, userID, source.Group.GroupID.String()); err != nil {
 			return errRecordNotVisible("forward source")
 		}
 	}
@@ -479,7 +479,7 @@ func (s *MessageService) toMessageView(ctx context.Context, viewerID uint64, gro
 	}
 
 	view := MessageView{
-		GroupID:              group.GroupID,
+		GroupID:              group.GroupID.String(),
 		MessageID:            message.MessageID,
 		Seq:                  message.Seq,
 		ContentType:          message.ContentType,
@@ -519,7 +519,7 @@ func (s *MessageService) resolveForwardReference(ctx context.Context, viewerID u
 	}
 
 	if !adminView {
-		if _, _, err := s.requireActiveMembership(ctx, viewerID, source.Group.GroupID); err != nil {
+		if _, _, err := s.requireActiveMembership(ctx, viewerID, source.Group.GroupID.String()); err != nil {
 			return &ForwardReferenceView{State: "unavailable", Notice: "原消息不可见"}, nil
 		}
 	}
@@ -534,7 +534,7 @@ func (s *MessageService) resolveForwardReference(ctx context.Context, viewerID u
 	return &ForwardReferenceView{
 		State: "ok",
 		Message: &MessageSummary{
-			GroupID:     source.Group.GroupID,
+			GroupID:     source.Group.GroupID.String(),
 			MessageID:   source.MessageID,
 			Seq:         source.Seq,
 			ContentType: source.ContentType,

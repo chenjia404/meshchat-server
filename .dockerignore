@@ -1,6 +1,7 @@
 .git
 .gopath
 .gomodcache
+.cache
 docker-compose/postgres-data
 docker-compose/redis-data
 docker-compose/ipfs-data

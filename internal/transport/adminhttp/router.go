@@ -26,6 +26,7 @@ func NewRouter(handler *Handler, jwtManager *auth.AdminJWTManager, recoverer fun
 	router.Use(recoverer)
 	router.Use(requestLogger)
 
+	router.Get("/", handler.getIndex)
 	router.Get("/healthz", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		writeJSON(w, stdhttp.StatusOK, map[string]any{"status": "ok"})
 	})

@@ -137,6 +137,8 @@ Authorization: Bearer <jwt>
 
 管理后台运行在独立端口，默认 `ADMIN_HTTP_ADDR=:8081`。它使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录，返回独立的 admin JWT，不和前台用户 token 混用。
 
+浏览器直接访问后台端口根路径 `/` 即可打开管理页面。
+
 ### 3.1 登录
 
 `POST /admin/login`

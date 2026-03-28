@@ -1,11 +1,15 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // Group stores mutable room-level settings. TTL and slow mode are evaluated dynamically.
 type Group struct {
 	ID                     uint64     `gorm:"primaryKey" json:"id"`
-	GroupID                string     `gorm:"type:uuid;uniqueIndex;not null" json:"group_id"`
+	GroupID                uuid.UUID  `gorm:"type:uuid;uniqueIndex;not null" json:"group_id"`
 	Title                  string     `gorm:"size:256;not null" json:"title"`
 	About                  string     `gorm:"size:2048" json:"about"`
 	AvatarCID              string     `gorm:"size:255" json:"avatar_cid"`
