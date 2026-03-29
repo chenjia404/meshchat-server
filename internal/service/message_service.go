@@ -137,12 +137,15 @@ func (s *MessageService) SendMessage(ctx context.Context, userID uint64, groupID
 		Signature:            input.Signature,
 	}
 
+	now := time.Now().UTC()
 	if err := s.groups.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		seq, err := s.groups.IncrementLastSeq(ctx, tx, group.ID)
+		seq, err := s.groups.IncrementLastSeq(ctx, tx, group.ID, now)
 		if err != nil {
 			return err
 		}
 		message.Seq = seq
+		message.CreatedAt = now
+		message.UpdatedAt = now
 		return s.messages.Create(ctx, tx, message)
 	}); err != nil {
 		return nil, err

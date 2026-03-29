@@ -195,7 +195,7 @@ func (r *GroupRepo) UpdateMember(ctx context.Context, member *model.GroupMember)
 	}).Error
 }
 
-func (r *GroupRepo) IncrementLastSeq(ctx context.Context, tx *gorm.DB, groupID uint64) (uint64, error) {
+func (r *GroupRepo) IncrementLastSeq(ctx context.Context, tx *gorm.DB, groupID uint64, messageAt time.Time) (uint64, error) {
 	if err := r.ensureTable(); err != nil {
 		return 0, err
 	}
@@ -204,7 +204,11 @@ func (r *GroupRepo) IncrementLastSeq(ctx context.Context, tx *gorm.DB, groupID u
 		return 0, err
 	}
 	group.LastMessageSeq++
-	if err := tx.WithContext(ctx).Model(group).Update("last_message_seq", group.LastMessageSeq).Error; err != nil {
+	atSec := messageAt.Unix()
+	if err := tx.WithContext(ctx).Model(group).Updates(map[string]any{
+		"last_message_seq": group.LastMessageSeq,
+		"last_message_at": atSec,
+	}).Error; err != nil {
 		return 0, err
 	}
 	return group.LastMessageSeq, nil
@@ -242,6 +246,9 @@ func (r *GroupRepo) ensureTable() error {
 		}
 	}
 	if err := r.renameLegacyGroupAvatarColumn(); err != nil {
+		return err
+	}
+	if err := r.ensureLastMessageAtColumn(); err != nil {
 		return err
 	}
 	// Build the dependency chain in order so foreign keys do not fail on
@@ -285,6 +292,7 @@ func (r *GroupRepo) ensureCanonicalGroupTable() error {
 			"message_retract_seconds" bigint NOT NULL DEFAULT 0,
 			"message_cooldown_seconds" bigint NOT NULL DEFAULT 0,
 			"last_message_seq" bigint NOT NULL DEFAULT 0,
+			"last_message_at" bigint NOT NULL DEFAULT 0,
 			"settings_version" bigint NOT NULL DEFAULT 1,
 			"status" varchar(32) NOT NULL DEFAULT 'active',
 			"created_at" timestamptz,
@@ -384,4 +392,63 @@ func (r *GroupRepo) renameLegacyGroupAvatarColumn() error {
 		return r.db.Exec(`ALTER TABLE "groups" DROP COLUMN IF EXISTS "avatar_c_id"`).Error
 	}
 	return r.db.Exec(`ALTER TABLE "groups" RENAME COLUMN "avatar_c_id" TO "avatar_cid"`).Error
+}
+
+func (r *GroupRepo) ensureLastMessageAtColumn() error {
+	if !r.db.Migrator().HasTable(&model.Group{}) {
+		return nil
+	}
+	var hasUnix, hasMs bool
+	if err := r.db.Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'last_message_at'
+		)
+	`).Scan(&hasUnix).Error; err != nil {
+		return err
+	}
+	if err := r.db.Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'last_message_at_ms'
+		)
+	`).Scan(&hasMs).Error; err != nil {
+		return err
+	}
+	if !hasUnix {
+		if err := r.db.Exec(`ALTER TABLE "groups" ADD COLUMN "last_message_at" bigint NOT NULL DEFAULT 0`).Error; err != nil {
+			return err
+		}
+		if hasMs {
+			if err := r.db.Exec(`UPDATE "groups" SET "last_message_at" = "last_message_at_ms" / 1000 WHERE "last_message_at_ms" != 0`).Error; err != nil {
+				return err
+			}
+			if err := r.db.Exec(`ALTER TABLE "groups" DROP COLUMN "last_message_at_ms"`).Error; err != nil {
+				return err
+			}
+		}
+	} else if hasMs {
+		if err := r.db.Exec(`ALTER TABLE "groups" DROP COLUMN "last_message_at_ms"`).Error; err != nil {
+			return err
+		}
+	}
+	return r.backfillGroupLastMessageAt()
+}
+
+func (r *GroupRepo) backfillGroupLastMessageAt() error {
+	if !r.db.Migrator().HasTable(&model.GroupMessage{}) {
+		return nil
+	}
+	return r.db.Exec(`
+		UPDATE "groups" g
+		SET "last_message_at" = (EXTRACT(EPOCH FROM m.max_ca))::bigint
+		FROM (
+			SELECT "group_id", MAX("created_at") AS max_ca
+			FROM "group_messages"
+			GROUP BY "group_id"
+		) m
+		WHERE g."id" = m."group_id"
+		  AND g."last_message_seq" > 0
+		  AND g."last_message_at" = 0
+	`).Error
 }

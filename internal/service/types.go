@@ -29,6 +29,7 @@ type GroupView struct {
 	MessageRetractSeconds  int64      `json:"message_retract_seconds"`
 	MessageCooldownSeconds int64      `json:"message_cooldown_seconds"`
 	LastMessageSeq         uint64     `json:"last_message_seq"`
+	LastMessageTimestamp   int64      `json:"last_message_timestamp"` // Unix 秒
 	SettingsVersion        uint64     `json:"settings_version"`
 	Status                 string     `json:"status"`
 	EffectivePermissions   int64      `json:"effective_permissions"`

@@ -518,6 +518,7 @@ func (s *AdminService) toAdminGroupView(group model.Group, member model.GroupMem
 		MessageRetractSeconds:  group.MessageRetractSeconds,
 		MessageCooldownSeconds: group.MessageCooldownSeconds,
 		LastMessageSeq:         group.LastMessageSeq,
+		LastMessageTimestamp:   group.LastMessageAt,
 		SettingsVersion:        group.SettingsVersion,
 		Status:                 group.Status,
 		EffectivePermissions:   model.EffectivePermissions(member.Role, group.DefaultPermissions, member.PermissionsAllow, member.PermissionsDeny),

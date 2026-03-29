@@ -29,6 +29,9 @@ func Run(ctx context.Context, db *gorm.DB) error {
 		if err := ensureCanonicalGroupTables(tx); err != nil {
 			return err
 		}
+		if err := ensureGroupLastMessageAtColumn(tx); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -73,6 +76,7 @@ func ensureCanonicalGroupTables(tx *gorm.DB) error {
 			"message_retract_seconds" bigint NOT NULL DEFAULT 0,
 			"message_cooldown_seconds" bigint NOT NULL DEFAULT 0,
 			"last_message_seq" bigint NOT NULL DEFAULT 0,
+			"last_message_at" bigint NOT NULL DEFAULT 0,
 			"settings_version" bigint NOT NULL DEFAULT 1,
 			"status" varchar(32) NOT NULL DEFAULT 'active',
 			"created_at" timestamptz,
@@ -144,6 +148,60 @@ func ensureCanonicalGroupTables(tx *gorm.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func ensureGroupLastMessageAtColumn(tx *gorm.DB) error {
+	var hasUnix, hasMs bool
+	if err := tx.Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'last_message_at'
+		)
+	`).Scan(&hasUnix).Error; err != nil {
+		return err
+	}
+	if err := tx.Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'last_message_at_ms'
+		)
+	`).Scan(&hasMs).Error; err != nil {
+		return err
+	}
+	if !hasUnix {
+		if err := tx.Exec(`ALTER TABLE "groups" ADD COLUMN "last_message_at" bigint NOT NULL DEFAULT 0`).Error; err != nil {
+			return fmt.Errorf("add groups.last_message_at: %w", err)
+		}
+		if hasMs {
+			if err := tx.Exec(`UPDATE "groups" SET "last_message_at" = "last_message_at_ms" / 1000 WHERE "last_message_at_ms" != 0`).Error; err != nil {
+				return fmt.Errorf("migrate last_message_at_ms to last_message_at: %w", err)
+			}
+			if err := tx.Exec(`ALTER TABLE "groups" DROP COLUMN "last_message_at_ms"`).Error; err != nil {
+				return fmt.Errorf("drop groups.last_message_at_ms: %w", err)
+			}
+		}
+	} else if hasMs {
+		if err := tx.Exec(`ALTER TABLE "groups" DROP COLUMN "last_message_at_ms"`).Error; err != nil {
+			return fmt.Errorf("drop groups.last_message_at_ms: %w", err)
+		}
+	}
+
+	// 已有历史数据：若 last_message_seq 已递增但时间戳仍为 0，则用最后一条消息的 created_at 回填（Unix 秒）。
+	if err := tx.Exec(`
+		UPDATE "groups" g
+		SET "last_message_at" = (EXTRACT(EPOCH FROM m.max_ca))::bigint
+		FROM (
+			SELECT "group_id", MAX("created_at") AS max_ca
+			FROM "group_messages"
+			GROUP BY "group_id"
+		) m
+		WHERE g."id" = m."group_id"
+		  AND g."last_message_seq" > 0
+		  AND g."last_message_at" = 0
+	`).Error; err != nil {
+		return fmt.Errorf("backfill groups.last_message_at: %w", err)
+	}
 	return nil
 }
 

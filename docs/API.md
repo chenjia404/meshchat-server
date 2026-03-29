@@ -280,6 +280,7 @@ Authorization: Bearer <jwt>
   "message_retract_seconds": 300,
   "message_cooldown_seconds": 0,
   "last_message_seq": 12,
+  "last_message_timestamp": 1711632000,
   "settings_version": 3,
   "status": "active",
   "effective_permissions": 9223372036854775807,

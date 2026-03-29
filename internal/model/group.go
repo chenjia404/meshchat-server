@@ -22,6 +22,8 @@ type Group struct {
 	MessageRetractSeconds  int64      `gorm:"not null;default:0" json:"message_retract_seconds"`
 	MessageCooldownSeconds int64      `gorm:"not null;default:0" json:"message_cooldown_seconds"`
 	LastMessageSeq         uint64     `gorm:"not null;default:0" json:"last_message_seq"`
+	// LastMessageAt 为 Unix 秒时间戳，与最后一条消息的创建时间一致，供客户端列表排序。
+	LastMessageAt          int64      `gorm:"column:last_message_at;not null;default:0" json:"last_message_timestamp"`
 	SettingsVersion        uint64     `gorm:"not null;default:1" json:"settings_version"`
 	Status                 string     `gorm:"size:32;not null;default:'active'" json:"status"`
 	CreatedAt              time.Time  `json:"created_at"`
