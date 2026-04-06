@@ -934,7 +934,20 @@ GET /api/groups/{group_id}/messages?before_seq=100&limit=20
 
 ### POST /api/files
 
-请求体：
+支持两种模式：
+
+- `multipart/form-data` 上传任意文件，服务端会将文件写入本地 IPFS 并返回生成的 CID
+- `application/json` 继续支持直接登记已有 CID 的元数据
+
+`multipart/form-data` 示例：
+
+```bash
+curl -X POST http://localhost:8080/api/files \
+  -H "Authorization: Bearer <jwt>" \
+  -F "file=@./avatar.jpg"
+```
+
+`application/json` 示例：
 
 ```json
 {
@@ -962,14 +975,15 @@ GET /api/groups/{group_id}/messages?before_seq=100&limit=20
   "duration_seconds": null,
   "file_name": "spec.pdf",
   "thumbnail_cid": "",
-  "created_at": "2026-03-28T12:00:00Z"
+ "created_at": "2026-03-28T12:00:00Z"
 }
 ```
 
 说明：
 
-- 该接口只登记元数据，不上传文件内容
-- 文件内容由客户端自行写入 IPFS
+- 使用 `multipart/form-data` 上传文件时，服务端会先写入本地 IPFS，再登记元数据
+- 若上传内容是可识别图片，服务端会额外解析并返回 `width` / `height`
+- 使用 `application/json` 时，该接口仍然只登记元数据，不上传文件内容
 - 客户端可通过 CID 走 IPFS 网络或网关拉取内容
 
 ## 7. WebSocket 协议

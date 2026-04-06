@@ -122,9 +122,9 @@ type AdminUserView struct {
 }
 
 type ServerInfoView struct {
-	ServerMode          string `json:"server_mode"`
-	IPFSGatewayPrefix   string `json:"ipfs_gateway_prefix,omitempty"`
-	IPFSGatewayBaseURL  string `json:"ipfs_gateway_base_url,omitempty"`
+	ServerMode         string `json:"server_mode"`
+	IPFSGatewayPrefix  string `json:"ipfs_gateway_prefix,omitempty"`
+	IPFSGatewayBaseURL string `json:"ipfs_gateway_base_url,omitempty"`
 }
 
 type TextPayload struct {
@@ -241,6 +241,12 @@ type RegisterFileInput struct {
 	DurationSeconds *int   `json:"duration_seconds"`
 	FileName        string `json:"file_name"`
 	ThumbnailCID    string `json:"thumbnail_cid"`
+}
+
+type UploadImageInput struct {
+	FileName string
+	MIMEType string
+	Content  []byte
 }
 
 type RealtimeEnvelope struct {

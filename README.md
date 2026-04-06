@@ -218,19 +218,16 @@ curl -X POST http://localhost:8080/api/groups/${GROUP_ID}/messages \
   }'
 ```
 
-### 注册文件元数据
+### 上传文件到 IPFS
 
 ```bash
 curl -X POST http://localhost:8080/api/files \
   -H "Authorization: Bearer ${TOKEN}" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "cid":"bafy...",
-    "mime_type":"application/pdf",
-    "size":456789,
-    "file_name":"spec.pdf"
-  }'
+  -F "file=@./avatar.jpg"
 ```
+
+返回结果包含服务端写入本地 IPFS 后生成的 `cid`、图片尺寸和文件大小。
+如果上传的是非图片文件，则不会返回图片尺寸。
 
 ## 当前实现说明
 

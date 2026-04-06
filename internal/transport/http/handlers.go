@@ -2,8 +2,11 @@ package http
 
 import (
 	"encoding/json"
+	"io"
+	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"meshchat-server/internal/service"
 	"meshchat-server/pkg/apperrors"
@@ -333,11 +336,55 @@ func (h *Handler) postMessageDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) postFiles(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		h.postFilesMultipart(w, r)
+		return
+	}
+
 	var request service.RegisterFileInput
 	if !decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.files.Register(r.Context(), currentUserID(r), request)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, response)
+}
+
+func (h *Handler) postFilesMultipart(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_multipart", "multipart form is invalid"))
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "file_required", "multipart field 'file' is required"))
+		return
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_file", "failed to read uploaded file"))
+		return
+	}
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = http.DetectContentType(content)
+	} else if parsed, _, parseErr := mime.ParseMediaType(mimeType); parseErr == nil {
+		mimeType = parsed
+	}
+
+	response, err := h.files.UploadImage(r.Context(), currentUserID(r), service.UploadImageInput{
+		FileName: header.Filename,
+		MIMEType: mimeType,
+		Content:  content,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
