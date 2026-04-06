@@ -61,7 +61,7 @@ func (s *FileService) Register(ctx context.Context, userID uint64, input Registe
 	return file, nil
 }
 
-func (s *FileService) UploadImage(ctx context.Context, userID uint64, input UploadImageInput) (*model.File, error) {
+func (s *FileService) UploadFile(ctx context.Context, userID uint64, input UploadFileInput) (*model.File, error) {
 	if len(input.Content) == 0 {
 		return nil, apperrors.New(400, "empty_file", "file is required")
 	}

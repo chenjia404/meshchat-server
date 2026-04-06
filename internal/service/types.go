@@ -243,7 +243,7 @@ type RegisterFileInput struct {
 	ThumbnailCID    string `json:"thumbnail_cid"`
 }
 
-type UploadImageInput struct {
+type UploadFileInput struct {
 	FileName string
 	MIMEType string
 	Content  []byte

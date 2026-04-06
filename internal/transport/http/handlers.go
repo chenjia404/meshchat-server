@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"meshchat-server/internal/model"
 	"meshchat-server/internal/service"
 	"meshchat-server/pkg/apperrors"
 
@@ -292,11 +293,111 @@ func (h *Handler) getMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		h.postMessagesMultipart(w, r)
+		return
+	}
+
 	var request service.SendMessageInput
 	if !decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.message.SendMessage(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, response)
+}
+
+func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_multipart", "multipart form is invalid"))
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "file_required", "multipart field 'file' is required"))
+		return
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_file", "failed to read uploaded file"))
+		return
+	}
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = http.DetectContentType(content)
+	} else if parsed, _, parseErr := mime.ParseMediaType(mimeType); parseErr == nil {
+		mimeType = parsed
+	}
+
+	uploaded, err := h.files.UploadFile(r.Context(), currentUserID(r), service.UploadFileInput{
+		FileName: firstNonEmpty(r.FormValue("file_name"), header.Filename),
+		MIMEType: mimeType,
+		Content:  content,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	messageType, err := resolveUploadedMessageType(strings.TrimSpace(r.FormValue("content_type")), uploaded.MIMEType)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	var replyTo *string
+	if value := strings.TrimSpace(r.FormValue("reply_to_message_id")); value != "" {
+		replyTo = &value
+	}
+	var forwardFrom *string
+	if value := strings.TrimSpace(r.FormValue("forward_from_message_id")); value != "" {
+		forwardFrom = &value
+	}
+
+	var payload any
+	switch messageType {
+	case model.MessageContentTypeImage:
+		if uploaded.Width == nil || uploaded.Height == nil || *uploaded.Width <= 0 || *uploaded.Height <= 0 {
+			writeError(w, apperrors.New(http.StatusBadRequest, "invalid_payload", "uploaded file is not a valid image"))
+			return
+		}
+		payload = service.ImagePayload{
+			CID:          uploaded.CID,
+			MIMEType:     uploaded.MIMEType,
+			Size:         uploaded.Size,
+			Width:        *uploaded.Width,
+			Height:       *uploaded.Height,
+			Caption:      strings.TrimSpace(r.FormValue("caption")),
+			ThumbnailCID: strings.TrimSpace(r.FormValue("thumbnail_cid")),
+		}
+	case model.MessageContentTypeFile:
+		payload = service.FilePayload{
+			CID:      uploaded.CID,
+			MIMEType: uploaded.MIMEType,
+			Size:     uploaded.Size,
+			FileName: uploaded.FileName,
+			Caption:  strings.TrimSpace(r.FormValue("caption")),
+		}
+	default:
+		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_content_type", "multipart messages only support image or file"))
+		return
+	}
+
+	response, err := h.message.SendMessage(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), service.SendMessageInput{
+		ContentType:          messageType,
+		Payload:              payload,
+		ReplyToMessageID:     replyTo,
+		ForwardFromMessageID: forwardFrom,
+		Signature:            strings.TrimSpace(r.FormValue("signature")),
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -380,7 +481,7 @@ func (h *Handler) postFilesMultipart(w http.ResponseWriter, r *http.Request) {
 		mimeType = parsed
 	}
 
-	response, err := h.files.UploadImage(r.Context(), currentUserID(r), service.UploadImageInput{
+	response, err := h.files.UploadFile(r.Context(), currentUserID(r), service.UploadFileInput{
 		FileName: header.Filename,
 		MIMEType: mimeType,
 		Content:  content,
@@ -412,4 +513,33 @@ func writeError(w http.ResponseWriter, err error) {
 	writeJSON(w, apperrors.HTTPStatus(err), map[string]any{
 		"error": apperrors.Public(err),
 	})
+}
+
+func resolveUploadedMessageType(requestedType, mimeType string) (string, error) {
+	switch requestedType {
+	case "":
+		if strings.HasPrefix(mimeType, "image/") {
+			return model.MessageContentTypeImage, nil
+		}
+		return model.MessageContentTypeFile, nil
+	case model.MessageContentTypeImage:
+		if !strings.HasPrefix(mimeType, "image/") {
+			return "", apperrors.New(http.StatusBadRequest, "invalid_payload", "content_type=image requires an image file")
+		}
+		return requestedType, nil
+	case model.MessageContentTypeFile:
+		return requestedType, nil
+	default:
+		return "", apperrors.New(http.StatusBadRequest, "invalid_content_type", "multipart messages only support image or file")
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

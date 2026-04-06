@@ -886,6 +886,27 @@ GET /api/groups/{group_id}/messages?before_seq=100&limit=20
 
 返回新建后的 `Message` 对象。
 
+也支持 `multipart/form-data` 直接上传文件并自动发消息，适用于 `image` / `file`：
+
+```bash
+curl -X POST http://localhost:8080/api/groups/<group_id>/messages \
+  -H "Authorization: Bearer <jwt>" \
+  -F "file=@./avatar.jpg" \
+  -F "content_type=image" \
+  -F "caption=cover"
+```
+
+表单字段说明：
+
+- `file`: 必填，要发送的文件内容
+- `content_type`: 可选，`image` 或 `file`；不传时会根据 MIME 自动判断，图片走 `image`，其余走 `file`
+- `caption`: 可选，图片或文件说明
+- `file_name`: 可选，仅 `file` 消息有意义；不传时默认取上传文件名
+- `reply_to_message_id`: 可选
+- `signature`: 可选
+
+当最终消息类型为 `image` 时，服务端会先上传到本地 IPFS，再自动填充 `cid`、`mime_type`、`size`、`width`、`height` 后创建消息；当类型为 `file` 时，会自动填充 `cid`、`mime_type`、`size`、`file_name`。
+
 ### PATCH /api/groups/{group_id}/messages/{message_id}
 
 请求体：

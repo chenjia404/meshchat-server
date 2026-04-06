@@ -218,6 +218,16 @@ curl -X POST http://localhost:8080/api/groups/${GROUP_ID}/messages \
   }'
 ```
 
+也可以直接上传文件并自动发 `image` / `file` 消息：
+
+```bash
+curl -X POST http://localhost:8080/api/groups/${GROUP_ID}/messages \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -F "file=@./avatar.jpg" \
+  -F "content_type=image" \
+  -F "caption=hello"
+```
+
 ### 上传文件到 IPFS
 
 ```bash
