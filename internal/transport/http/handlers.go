@@ -46,7 +46,9 @@ func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getServerInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, service.ServerInfoView{
-		ServerMode: h.mode,
+		ServerMode:         h.mode,
+		IPFSGatewayPrefix:  h.ipfsGatewayPrefix,
+		IPFSGatewayBaseURL: h.ipfsGatewayBaseURL,
 	})
 }
 

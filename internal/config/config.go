@@ -26,9 +26,11 @@ type Config struct {
 	JWTIssuer          string
 	JWTExpiration      time.Duration
 	ChallengeTTL       time.Duration
-	IPFSAPIURL         string
-	IPFSGatewayBaseURL string
+	IPFSAPIURL             string
+	IPFSGatewayUpstreamURL string
+	IPFSGatewayBaseURL     string
 	AutoMigrate        bool
+	LegacyAPIRoot      bool
 	WSWriteWait        time.Duration
 	WSPongWait         time.Duration
 	WSPingInterval     time.Duration
@@ -56,9 +58,11 @@ func Load() Config {
 		JWTIssuer:          getEnv("JWT_ISSUER", "meshchat-server"),
 		JWTExpiration:      getEnvDuration("JWT_EXPIRATION", 72*time.Hour),
 		ChallengeTTL:       getEnvDuration("AUTH_CHALLENGE_TTL", 5*time.Minute),
-		IPFSAPIURL:         getEnv("IPFS_API_URL", "http://localhost:5001"),
-		IPFSGatewayBaseURL: getEnv("IPFS_GATEWAY_BASE_URL", ""),
+		IPFSAPIURL:             getEnv("IPFS_API_URL", "http://localhost:5001"),
+		IPFSGatewayUpstreamURL: getEnv("IPFS_GATEWAY_UPSTREAM", ""),
+		IPFSGatewayBaseURL:     getEnv("IPFS_GATEWAY_BASE_URL", ""),
 		AutoMigrate:        getEnvBool("AUTO_MIGRATE", true),
+		LegacyAPIRoot:      getEnvBool("LEGACY_API_ROOT", true),
 		WSWriteWait:        getEnvDuration("WS_WRITE_WAIT", 10*time.Second),
 		WSPongWait:         getEnvDuration("WS_PONG_WAIT", 60*time.Second),
 		WSPingInterval:     getEnvDuration("WS_PING_INTERVAL", 54*time.Second),

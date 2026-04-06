@@ -76,7 +76,8 @@ services:
       JWT_EXPIRATION: 72h
       AUTH_CHALLENGE_TTL: 5m
       IPFS_API_URL: http://ipfs:5001
-      IPFS_GATEWAY_BASE_URL: http://localhost:8081
+      IPFS_GATEWAY_UPSTREAM: http://ipfs:8080
+      IPFS_GATEWAY_BASE_URL: http://localhost:8581
       AUTO_MIGRATE: "true"
       WS_WRITE_WAIT: 10s
       WS_PONG_WAIT: 60s

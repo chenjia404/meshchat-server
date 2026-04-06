@@ -122,7 +122,9 @@ type AdminUserView struct {
 }
 
 type ServerInfoView struct {
-	ServerMode string `json:"server_mode"`
+	ServerMode          string `json:"server_mode"`
+	IPFSGatewayPrefix   string `json:"ipfs_gateway_prefix,omitempty"`
+	IPFSGatewayBaseURL  string `json:"ipfs_gateway_base_url,omitempty"`
 }
 
 type TextPayload struct {

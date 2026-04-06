@@ -55,8 +55,9 @@ docker compose up --build -d
 
 启动后服务默认暴露：
 
-- API: `http://localhost:8080`
-- IPFS Gateway: `http://localhost:8081`
+- API（含经反代的 IPFS 网关路径 `/ipfs/...`）: `http://localhost:8581`
+- Admin: `http://localhost:8582`
+- （可选）Kubo 网关直连: `http://localhost:8381`
 
 PostgreSQL、Redis、IPFS API 在 Compose 内部网络中互通，不默认映射到宿主机，避免本机端口冲突。
 
@@ -89,6 +90,9 @@ go run ./cmd/server
 - `JWT_SECRET`: JWT 签名密钥
 - `AUTH_CHALLENGE_TTL`: 登录 challenge 生存时间
 - `IPFS_API_URL`: IPFS API 地址
+- `IPFS_GATEWAY_UPSTREAM`: Kubo 网关地址（如 `http://ipfs:8080`），设置后可通过 HTTP Base URL 的 `/ipfs/...` 访问内容
+- `IPFS_GATEWAY_BASE_URL`: 可选，写入 `GET /server/info` 的对外 HTTP 根地址，便于客户端拼接绝对 URL
+- `LEGACY_API_ROOT`: 默认 `true`，在根路径保留与 `/api/...` 相同的旧版接口；旧客户端全部升级后可设为 `false`
 - `AUTO_MIGRATE`: 启动时自动执行 GORM migration
 - `WS_SEND_BUFFER`: WebSocket 单连接发送队列大小
 
@@ -118,7 +122,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 ### 1. 获取 challenge
 
 ```bash
-curl -X POST http://localhost:8080/auth/challenge \
+curl -X POST http://localhost:8080/api/auth/challenge \
   -H 'Content-Type: application/json' \
   -d '{"peer_id":"12D3KooW..."}'
 ```
@@ -126,7 +130,7 @@ curl -X POST http://localhost:8080/auth/challenge \
 ### 2. 使用 libp2p 私钥签名 challenge 后登录
 
 ```bash
-curl -X POST http://localhost:8080/auth/login \
+curl -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{
     "peer_id":"12D3KooW...",
@@ -138,14 +142,14 @@ curl -X POST http://localhost:8080/auth/login \
 
 登录成功后返回 JWT token。
 
-`GET /me/profile` 会返回当前用户的 `peer_id`，前台可以通过 `PATCH /users/{peer_id}/profile` 更新自己的资料。
+`GET /api/me/profile` 会返回当前用户的 `peer_id`，前台可以通过 `PATCH /api/users/{peer_id}/profile` 更新自己的资料。
 
 ## WebSocket 使用
 
 握手地址：
 
 ```text
-GET /ws?token=<jwt>
+GET /api/ws?token=<jwt>
 ```
 
 订阅多个群：
@@ -179,14 +183,14 @@ GET /ws?token=<jwt>
 ### 获取个人资料
 
 ```bash
-curl http://localhost:8080/me/profile \
+curl http://localhost:8080/api/me/profile \
   -H "Authorization: Bearer ${TOKEN}"
 ```
 
 ### 创建群组
 
 ```bash
-curl -X POST http://localhost:8080/groups \
+curl -X POST http://localhost:8080/api/groups \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -205,7 +209,7 @@ curl -X POST http://localhost:8080/groups \
 ### 发文本消息
 
 ```bash
-curl -X POST http://localhost:8080/groups/${GROUP_ID}/messages \
+curl -X POST http://localhost:8080/api/groups/${GROUP_ID}/messages \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -217,7 +221,7 @@ curl -X POST http://localhost:8080/groups/${GROUP_ID}/messages \
 ### 注册文件元数据
 
 ```bash
-curl -X POST http://localhost:8080/files \
+curl -X POST http://localhost:8080/api/files \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -233,11 +237,11 @@ curl -X POST http://localhost:8080/files \
 - `SERVER_MODE=public` 时所有登录用户都可以创建群，`restricted` 时只有服务器管理员可以创建群。
 - 服务器管理员可以解散群；服务器管理员和群主都可以设置或取消群管理员。
 - 当前群主可以将群转让给本群的其他活跃成员，转让后原群主自动变为管理员。
-- 公开群支持 `POST /groups/{group_id}/join` 自助加入，加入后才能在该群发言。
-- `GET /me/groups` 可以列出当前用户所有已加入的群聊。
-- 群主、群管理员和服务器管理员支持 `POST /groups/{group_id}/members/{user_id}/invite` 邀请用户入群，邀请后目标用户直接变为活跃成员。
-- 也支持 `POST /groups/{group_id}/members/invite` 传入 `peer_id` 列表批量邀请，服务器会为不存在的 `peer_id` 自动创建本地用户记录。
-- `POST /groups/{group_id}/leave` 支持主动退出群聊，退出后不再拥有该群权限；公开群后续仍可重新加入。
+- 公开群支持 `POST /api/groups/{group_id}/join` 自助加入，加入后才能在该群发言。
+- `GET /api/me/groups` 可以列出当前用户所有已加入的群聊。
+- 群主、群管理员和服务器管理员支持 `POST /api/groups/{group_id}/members/{user_id}/invite` 邀请用户入群，邀请后目标用户直接变为活跃成员。
+- 也支持 `POST /api/groups/{group_id}/members/invite` 传入 `peer_id` 列表批量邀请，服务器会为不存在的 `peer_id` 自动创建本地用户记录。
+- `POST /api/groups/{group_id}/leave` 支持主动退出群聊，退出后不再拥有该群权限；公开群后续仍可重新加入。
 - 管理后台运行在独立端口，默认 `ADMIN_HTTP_ADDR=:8081`，使用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录。
 - 浏览器直接访问后台端口根路径即可打开管理页面。
 - 管理后台修改用户资料时使用 `peer_id` 定位用户，接口为 `PATCH /admin/users/{peer_id}`。

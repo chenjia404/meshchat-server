@@ -13,44 +13,72 @@ import (
 )
 
 type Handler struct {
-	auth    *service.AuthService
-	profile *service.ProfileService
-	groups  *service.GroupService
-	message *service.MessageService
-	files   *service.FileService
-	ws      stdhttp.Handler
-	mode    string
+	auth               *service.AuthService
+	profile            *service.ProfileService
+	groups             *service.GroupService
+	message            *service.MessageService
+	files              *service.FileService
+	ws                 stdhttp.Handler
+	mode               string
+	ipfsGatewayPrefix  string
+	ipfsGatewayBaseURL string
 }
 
-func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, wsHandler stdhttp.Handler, serverMode string) *Handler {
+func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string) *Handler {
 	return &Handler{
-		auth:    authService,
-		profile: profile,
-		groups:  groupService,
-		message: messageService,
-		files:   fileService,
-		ws:      wsHandler,
-		mode:    serverMode,
+		auth:               authService,
+		profile:            profile,
+		groups:             groupService,
+		message:            messageService,
+		files:              fileService,
+		ws:                 wsHandler,
+		mode:               serverMode,
+		ipfsGatewayPrefix:  ipfsGatewayPrefix,
+		ipfsGatewayBaseURL: ipfsGatewayBaseURL,
 	}
 }
 
-func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(stdhttp.Handler) stdhttp.Handler, requestLogger func(stdhttp.Handler) stdhttp.Handler) chi.Router {
+func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(stdhttp.Handler) stdhttp.Handler, requestLogger func(stdhttp.Handler) stdhttp.Handler, ipfsGatewayProxy stdhttp.Handler, legacyAPIRoot bool) chi.Router {
 	router := chi.NewRouter()
 	router.Use(appmiddleware.AllowAnyOriginCORS())
 	router.Use(chimiddleware.RequestID)
 	router.Use(recoverer)
 	router.Use(requestLogger)
 
-	router.Get("/healthz", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if ipfsGatewayProxy != nil {
+		router.Handle("/ipfs/", ipfsGatewayProxy)
+		router.Get("/ipfs", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+			stdhttp.Redirect(w, r, "/ipfs/", stdhttp.StatusTemporaryRedirect)
+		})
+	}
+
+	healthz := func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		writeJSON(w, stdhttp.StatusOK, map[string]any{"status": "ok"})
+	}
+	router.Get("/healthz", healthz)
+
+	router.Route("/api", func(r chi.Router) {
+		r.Get("/healthz", healthz)
+		registerHTTPAPI(r, handler, jwtManager)
 	})
-	router.Get("/server/info", handler.getServerInfo)
 
-	router.Post("/auth/challenge", handler.postChallenge)
-	router.Post("/auth/login", handler.postLogin)
-	router.Get("/ws", handler.ws.ServeHTTP)
+	// 兼容未使用 /api 前缀的旧客户端（与 /api 下路由等价）。弃用时将 LEGACY_API_ROOT=false 或删除本段与 registerHTTPAPI 的 legacy 调用。
+	if legacyAPIRoot {
+		registerHTTPAPI(router, handler, jwtManager)
+	}
 
-	router.Group(func(r chi.Router) {
+	return router
+}
+
+// registerHTTPAPI 注册 MeshChat HTTP API（不含 /healthz）。挂载在 /api 子路由上时为 /api/...，挂在根路由上时为旧版根路径。
+func registerHTTPAPI(r chi.Router, handler *Handler, jwtManager *auth.JWTManager) {
+	r.Get("/server/info", handler.getServerInfo)
+
+	r.Post("/auth/challenge", handler.postChallenge)
+	r.Post("/auth/login", handler.postLogin)
+	r.Get("/ws", handler.ws.ServeHTTP)
+
+	r.Group(func(r chi.Router) {
 		r.Use(appmiddleware.RequireAuth(jwtManager))
 		r.Get("/me/groups", handler.getMyGroups)
 		r.Get("/me/profile", handler.getMyProfile)
@@ -78,8 +106,6 @@ func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(std
 		r.Post("/groups/{group_id}/messages/{message_id}/delete", handler.postMessageDelete)
 		r.Post("/files", handler.postFiles)
 	})
-
-	return router
 }
 
 func currentUserID(r *stdhttp.Request) uint64 {

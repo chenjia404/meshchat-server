@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"meshchat-server/internal/auth"
@@ -79,8 +80,25 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 
 	hub := wstransport.NewHub()
 	wsHandler := wstransport.NewHandler(hub, jwtManager, redisClient, groupService, logger, cfg.WSSendBuffer, cfg.WSWriteWait, cfg.WSPongWait, cfg.WSPingInterval, cfg.OnlineTTL)
-	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, wsHandler, cfg.ServerMode)
-	router := httptransport.NewRouter(httpHandler, jwtManager, appmiddleware.Recoverer(logger), appmiddleware.RequestLogger(logger))
+	ipfsGatewayPrefix := ""
+	if cfg.IPFSGatewayUpstreamURL != "" {
+		ipfsGatewayPrefix = "/ipfs"
+	}
+	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL)
+
+	var ipfsGatewayProxy http.Handler
+	if cfg.IPFSGatewayUpstreamURL != "" {
+		upstream, err := url.Parse(cfg.IPFSGatewayUpstreamURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse IPFS_GATEWAY_UPSTREAM: %w", err)
+		}
+		if upstream.Scheme == "" || upstream.Host == "" {
+			return nil, fmt.Errorf("IPFS_GATEWAY_UPSTREAM must be an absolute URL with scheme and host")
+		}
+		ipfsGatewayProxy = httptransport.NewIPFSGatewayProxy(upstream)
+	}
+
+	router := httptransport.NewRouter(httpHandler, jwtManager, appmiddleware.Recoverer(logger), appmiddleware.RequestLogger(logger), ipfsGatewayProxy, cfg.LegacyAPIRoot)
 	adminHandler := admintransport.NewHandler(adminService)
 	adminRouter := admintransport.NewRouter(adminHandler, adminJWTManager, appmiddleware.Recoverer(logger), appmiddleware.RequestLogger(logger))
 

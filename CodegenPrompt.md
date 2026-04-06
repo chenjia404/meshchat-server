@@ -433,7 +433,7 @@ owner 直接视为最高权限。
 
 ### 1. 获取 challenge
 
-`POST /auth/challenge`
+`POST /api/auth/challenge`
 
 输入：
 
@@ -447,7 +447,7 @@ owner 直接视为最高权限。
 
 ### 2. 提交签名登录
 
-`POST /auth/login`
+`POST /api/auth/login`
 
 输入：
 
@@ -470,38 +470,38 @@ owner 直接视为最高权限。
 
 ## 八、HTTP API 要求
 
-至少实现以下 API。
+至少实现以下 API（路径均带前缀 **`/api`**，与 IPFS 的 `/ipfs` 分离）。
 
 ### 用户资料
 
-* `GET /me/profile`
-* `PATCH /me/profile`
+* `GET /api/me/profile`
+* `PATCH /api/users/{peer_id}/profile`
 
 ### 群
 
-* `POST /groups`
-* `GET /groups/{group_id}`
-* `PATCH /groups/{group_id}`
-* `PATCH /groups/{group_id}/message-policy`
+* `POST /api/groups`
+* `GET /api/groups/{group_id}`
+* `PATCH /api/groups/{group_id}`
+* `PATCH /api/groups/{group_id}/message-policy`
 
 ### 成员
 
-* `GET /groups/{group_id}/members`
-* `PATCH /groups/{group_id}/members/{user_id}/permissions`
-* `POST /groups/{group_id}/members/{user_id}/mute`
-* `POST /groups/{group_id}/members/{user_id}/ban`
+* `GET /api/groups/{group_id}/members`
+* `PATCH /api/groups/{group_id}/members/{user_id}/permissions`
+* `POST /api/groups/{group_id}/members/{user_id}/mute`
+* `POST /api/groups/{group_id}/members/{user_id}/ban`
 
 ### 消息
 
-* `GET /groups/{group_id}/messages`
-* `POST /groups/{group_id}/messages`
-* `PATCH /groups/{group_id}/messages/{message_id}`
-* `POST /groups/{group_id}/messages/{message_id}/retract`
-* `POST /groups/{group_id}/messages/{message_id}/delete`
+* `GET /api/groups/{group_id}/messages`
+* `POST /api/groups/{group_id}/messages`
+* `PATCH /api/groups/{group_id}/messages/{message_id}`
+* `POST /api/groups/{group_id}/messages/{message_id}/retract`
+* `POST /api/groups/{group_id}/messages/{message_id}/delete`
 
 ### 文件
 
-* `POST /files`
+* `POST /api/files`
 
 ---
 
@@ -585,7 +585,7 @@ else visible if created_at >= now - ttl
 
 ### 握手
 
-* `GET /ws`
+* `GET /api/ws`
 * 通过 token 认证
 
 ### 订阅

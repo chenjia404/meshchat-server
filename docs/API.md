@@ -6,10 +6,12 @@
 
 ### 1.1 服务地址
 
-- HTTP Base URL: `http://<host>:8080`
+- HTTP Base URL: `http://<host>:8080`（用户业务接口统一带前缀 **`/api`**，例如 `POST /api/auth/login`）
+- **兼容旧客户端**：默认仍响应迁移前使用的**根路径**（如 `POST /auth/login`、`GET /ws`），与 `/api/...` 等价；准备下线旧客户端时可将环境变量 **`LEGACY_API_ROOT=false`**，仅保留 `/api/...`
 - Admin Base URL: `http://<host>:8081`
-- WebSocket URL: `ws://<host>:8080/ws?token=<jwt>`
-- IPFS Gateway: `http://<host>:8081/ipfs/<cid>`
+- WebSocket URL: `ws://<host>:8080/api/ws?token=<jwt>`
+- IPFS Gateway（经 HTTP 服务反向代理）: `http://<host>:8080/ipfs/<cid>`（与 Kubo 网关路径一致，挂在 `/ipfs/`）
+- 需在服务端配置 `IPFS_GATEWAY_UPSTREAM` 指向 Kubo 网关地址（如 `http://ipfs:8080`）后，上述路径才会可用；`GET /api/server/info` 会返回 `ipfs_gateway_prefix`（一般为 `/ipfs`）及可选的 `ipfs_gateway_base_url`（对外公布的 HTTP 根地址，便于拼接绝对 URL）
 
 ### 1.2 数据格式
 
@@ -65,21 +67,25 @@ Authorization: Bearer <jwt>
 
 ### 1.6 服务器信息接口
 
-`GET /server/info`
+`GET /api/server/info`
 
 无需鉴权，返回：
 
 ```json
 {
-  "server_mode": "public"
+  "server_mode": "public",
+  "ipfs_gateway_prefix": "/ipfs",
+  "ipfs_gateway_base_url": "https://example.com"
 }
 ```
+
+其中 `ipfs_gateway_prefix` 在启用网关反代后通常为 `/ipfs`，可访问的绝对地址为 `{ipfs_gateway_base_url}{ipfs_gateway_prefix}/<cid>`（即 `.../ipfs/<cid>`）。若未配置 `IPFS_GATEWAY_BASE_URL`，`ipfs_gateway_base_url` 可能为空，此时请用当前 HTTP Base URL 作为前缀。
 
 ## 2. 认证流程
 
 ### 2.1 获取 challenge
 
-`POST /auth/challenge`
+`POST /api/auth/challenge`
 
 请求体：
 
@@ -101,7 +107,7 @@ Authorization: Bearer <jwt>
 
 ### 2.2 提交签名登录
 
-`POST /auth/login`
+`POST /api/auth/login`
 
 请求体：
 
@@ -512,9 +518,11 @@ effective_permissions =
 
 ## 6. HTTP API
 
+以下接口路径均相对于 **HTTP Base URL**，且均带有前缀 **`/api`**（健康检查另有根路径 **`/healthz`**，与 **`/api/healthz`** 等价）。
+
 ## 6.1 健康检查
 
-`GET /healthz`
+`GET /healthz`（亦可 `GET /api/healthz`，等价）
 
 响应体：
 
@@ -526,13 +534,13 @@ effective_permissions =
 
 ## 6.2 用户资料
 
-### GET /me/profile
+### GET /api/me/profile
 
 返回当前登录用户资料。
 
 返回的用户对象包含 `peer_id`。
 
-### PATCH /users/{peer_id}/profile
+### PATCH /api/users/{peer_id}/profile
 
 按 `peer_id` 更新当前登录用户资料。
 
@@ -549,7 +557,7 @@ effective_permissions =
 }
 ```
 
-### GET /me/groups
+### GET /api/me/groups
 
 返回当前用户所有 `active` 加入的群聊。
 
@@ -562,7 +570,7 @@ effective_permissions =
 
 ## 6.3 群组
 
-### POST /groups
+### POST /api/groups
 
 权限要求：
 
@@ -584,11 +592,11 @@ effective_permissions =
 
 返回 `Group` 对象。
 
-### GET /groups/{group_id}
+### GET /api/groups/{group_id}
 
 返回群详情。
 
-### POST /groups/{group_id}/join
+### POST /api/groups/{group_id}/join
 
 权限要求：
 
@@ -605,7 +613,7 @@ effective_permissions =
 
 返回当前成员对象。
 
-### POST /groups/{group_id}/members/{user_id}/invite
+### POST /api/groups/{group_id}/members/{user_id}/invite
 
 权限要求：
 
@@ -623,7 +631,7 @@ effective_permissions =
 
 返回当前成员对象。
 
-### POST /groups/{group_id}/members/invite
+### POST /api/groups/{group_id}/members/invite
 
 权限要求：
 
@@ -651,7 +659,7 @@ effective_permissions =
 
 返回当前被处理成员列表，顺序与 `peer_ids` 去重后的顺序一致。
 
-### POST /groups/{group_id}/leave
+### POST /api/groups/{group_id}/leave
 
 权限要求：
 
@@ -667,7 +675,7 @@ effective_permissions =
 
 返回当前成员对象。
 
-### PATCH /groups/{group_id}
+### PATCH /api/groups/{group_id}
 
 请求体：
 
@@ -684,7 +692,7 @@ effective_permissions =
 
 返回更新后的 `Group` 对象。
 
-### POST /groups/{group_id}/transfer-owner
+### POST /api/groups/{group_id}/transfer-owner
 
 权限要求：
 
@@ -706,7 +714,7 @@ effective_permissions =
 
 返回更新后的 `Group` 对象。
 
-### POST /groups/{group_id}/dissolve
+### POST /api/groups/{group_id}/dissolve
 
 权限要求：
 
@@ -730,7 +738,7 @@ effective_permissions =
 - 群解散后 `status = closed`
 - 已关闭群不再允许普通成员继续进行群内访问和消息操作
 
-### PATCH /groups/{group_id}/message-policy
+### PATCH /api/groups/{group_id}/message-policy
 
 请求体：
 
@@ -752,7 +760,7 @@ effective_permissions =
 
 ## 6.4 成员
 
-### GET /groups/{group_id}/members
+### GET /api/groups/{group_id}/members
 
 返回成员数组：
 
@@ -774,7 +782,7 @@ effective_permissions =
 
 如果群隐藏成员列表，则需要调用者有 `PERM_VIEW_MEMBERS`。
 
-### PATCH /groups/{group_id}/members/{user_id}/permissions
+### PATCH /api/groups/{group_id}/members/{user_id}/permissions
 
 这里的 `user_id` 是服务端用户 ID，不是 `peer_id`。
 
@@ -789,7 +797,7 @@ effective_permissions =
 
 返回更新后的 `GroupMember` 对象。
 
-### POST /groups/{group_id}/members/{user_id}/admin
+### POST /api/groups/{group_id}/members/{user_id}/admin
 
 权限要求：
 
@@ -812,7 +820,7 @@ effective_permissions =
 
 返回更新后的 `GroupMember` 对象。
 
-### POST /groups/{group_id}/members/{user_id}/mute
+### POST /api/groups/{group_id}/members/{user_id}/mute
 
 请求体：
 
@@ -829,7 +837,7 @@ effective_permissions =
 
 返回更新后的 `GroupMember` 对象。
 
-### POST /groups/{group_id}/members/{user_id}/ban
+### POST /api/groups/{group_id}/members/{user_id}/ban
 
 无请求体。
 
@@ -837,7 +845,7 @@ effective_permissions =
 
 ## 6.5 消息
 
-### GET /groups/{group_id}/messages
+### GET /api/groups/{group_id}/messages
 
 查询参数：
 
@@ -847,12 +855,12 @@ effective_permissions =
 示例：
 
 ```text
-GET /groups/{group_id}/messages?before_seq=100&limit=20
+GET /api/groups/{group_id}/messages?before_seq=100&limit=20
 ```
 
 返回消息数组，服务端会自动过滤当前 TTL 下已经过期的消息。
 
-### POST /groups/{group_id}/messages
+### POST /api/groups/{group_id}/messages
 
 请求体：
 
@@ -878,7 +886,7 @@ GET /groups/{group_id}/messages?before_seq=100&limit=20
 
 返回新建后的 `Message` 对象。
 
-### PATCH /groups/{group_id}/messages/{message_id}
+### PATCH /api/groups/{group_id}/messages/{message_id}
 
 请求体：
 
@@ -899,7 +907,7 @@ GET /groups/{group_id}/messages?before_seq=100&limit=20
 
 返回编辑后的 `Message` 对象。
 
-### POST /groups/{group_id}/messages/{message_id}/retract
+### POST /api/groups/{group_id}/messages/{message_id}/retract
 
 无请求体。
 
@@ -910,7 +918,7 @@ GET /groups/{group_id}/messages?before_seq=100&limit=20
 
 返回删除后的 `Message` 对象，`status = deleted`，`delete_reason = self_retracted`。
 
-### POST /groups/{group_id}/messages/{message_id}/delete
+### POST /api/groups/{group_id}/messages/{message_id}/delete
 
 无请求体。
 
@@ -924,7 +932,7 @@ GET /groups/{group_id}/messages?before_seq=100&limit=20
 
 ## 6.6 文件元数据
 
-### POST /files
+### POST /api/files
 
 请求体：
 
@@ -969,7 +977,7 @@ GET /groups/{group_id}/messages?before_seq=100&limit=20
 ## 7.1 建立连接
 
 ```text
-GET /ws?token=<jwt>
+GET /api/ws?token=<jwt>
 ```
 
 也可以通过 `Authorization: Bearer <jwt>` 传 token。
@@ -1057,10 +1065,10 @@ GET /ws?token=<jwt>
 
 建议其它程序按下面顺序接入：
 
-1. 调 `POST /auth/challenge`
+1. 调 `POST /api/auth/challenge`
 2. 用 libp2p 私钥签名 challenge
-3. 调 `POST /auth/login` 获取 JWT
-4. 拉取 `/me/profile`
+3. 调 `POST /api/auth/login` 获取 JWT
+4. 拉取 `/api/me/profile`
 5. 拉取群详情和消息列表
-6. 建立 `/ws` 长连接并订阅需要的群
+6. 建立 `/api/ws` 长连接并订阅需要的群
 7. 发消息、编辑消息、撤回消息、处理实时事件
