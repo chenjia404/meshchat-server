@@ -87,7 +87,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if cfg.IPFSGatewayUpstreamURL != "" {
 		ipfsGatewayPrefix = "/ipfs"
 	}
-	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL)
+	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL, cfg.ExposeInternalErrorDetail)
 
 	var ipfsGatewayProxy http.Handler
 	if cfg.IPFSGatewayUpstreamURL != "" {

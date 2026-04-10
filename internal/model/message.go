@@ -8,9 +8,10 @@ import (
 
 // GroupMessage stores the message envelope and payload without storing any binary content.
 type GroupMessage struct {
-	ID                   uint64         `gorm:"primaryKey" json:"id"`
-	GroupID              uint64         `gorm:"not null;uniqueIndex:idx_group_message_message_id,priority:1;uniqueIndex:idx_group_message_seq,priority:1;index:idx_group_created_at,priority:1;index:idx_group_sender_created_at,priority:1;index:idx_group_reply,priority:1" json:"-"`
-	Group                Group          `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	ID      uint64 `gorm:"primaryKey" json:"id"`
+	GroupID uint64 `gorm:"not null;uniqueIndex:idx_group_message_message_id,priority:1;uniqueIndex:idx_group_message_seq,priority:1;index:idx_group_created_at,priority:1;index:idx_group_sender_created_at,priority:1;index:idx_group_reply,priority:1" json:"-"`
+	// 同 GroupMember：列名 group_id 为 groups.id；勿依赖 Preload("Group")，见 message_repo.attachGroupByInternalID。
+	Group   Group `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	MessageID            string         `gorm:"type:text;not null;uniqueIndex:idx_group_message_message_id,priority:2" json:"message_id"`
 	SenderUserID         uint64         `gorm:"not null;index:idx_group_sender_created_at,priority:2" json:"-"`
 	Sender               ServerUser     `gorm:"foreignKey:SenderUserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`

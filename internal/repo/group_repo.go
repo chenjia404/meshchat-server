@@ -166,7 +166,6 @@ func (r *GroupRepo) ListGroupsByMember(ctx context.Context, userID uint64, limit
 	}
 	var members []model.GroupMember
 	query := r.db.WithContext(ctx).
-		Preload("Group.OwnerUser").
 		Where("group_members.user_id = ? AND group_members.status = ?", userID, model.MemberStatusActive).
 		Order("group_members.joined_at DESC")
 	if limit > 0 {
@@ -177,6 +176,33 @@ func (r *GroupRepo) ListGroupsByMember(ctx context.Context, userID uint64, limit
 	}
 	if err := query.Find(&members).Error; err != nil {
 		return nil, err
+	}
+	if len(members) == 0 {
+		return members, nil
+	}
+	// 不能对 GroupMember 使用 Preload("Group.OwnerUser")：子表外键字段名与 Group.group_id（UUID）列同名，
+	// GORM 会误把 FK 值绑到 UUID 列，触发 pgx「unable to encode … into uuid」（常见为 user_id 低字节如 0x77）。
+	ids := make([]uint64, 0, len(members))
+	seen := make(map[uint64]struct{}, len(members))
+	for _, m := range members {
+		if _, ok := seen[m.GroupID]; ok {
+			continue
+		}
+		seen[m.GroupID] = struct{}{}
+		ids = append(ids, m.GroupID)
+	}
+	var groups []model.Group
+	if err := r.db.WithContext(ctx).Preload("OwnerUser").Where("id IN ?", ids).Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	byID := make(map[uint64]model.Group, len(groups))
+	for i := range groups {
+		byID[groups[i].ID] = groups[i]
+	}
+	for i := range members {
+		if g, ok := byID[members[i].GroupID]; ok {
+			members[i].Group = g
+		}
 	}
 	return members, nil
 }

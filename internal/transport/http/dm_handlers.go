@@ -16,7 +16,7 @@ func (h *Handler) getDMConversations(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := h.dm.ListConversations(r.Context(), currentUserID(r))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -28,12 +28,12 @@ func (h *Handler) postDMConversations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in service.CreateDMConversationInput
-	if !decodeBody(w, r, &in) {
+	if !h.decodeBody(w, r, &in) {
 		return
 	}
 	out, err := h.dm.CreateConversation(r.Context(), currentUserID(r), in)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -55,7 +55,7 @@ func (h *Handler) getDMMessages(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	list, err := h.dm.ListMessages(r.Context(), currentUserID(r), convID, beforeSeq, afterSeq, limit)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -67,13 +67,13 @@ func (h *Handler) postDMMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in service.SendDMMessageInput
-	if !decodeBody(w, r, &in) {
+	if !h.decodeBody(w, r, &in) {
 		return
 	}
 	convID := chi.URLParam(r, "conversation_id")
 	out, err := h.dm.SendMessage(r.Context(), currentUserID(r), convID, in)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, out)
@@ -87,7 +87,7 @@ func (h *Handler) postDMAck(w http.ResponseWriter, r *http.Request) {
 	msgID := chi.URLParam(r, "message_id")
 	out, err := h.dm.AckMessage(r.Context(), currentUserID(r), msgID)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)

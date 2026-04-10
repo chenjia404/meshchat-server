@@ -32,9 +32,10 @@ type Group struct {
 
 // GroupMember stores membership and permission overrides.
 type GroupMember struct {
-	ID               uint64     `gorm:"primaryKey" json:"id"`
-	GroupID          uint64     `gorm:"not null;uniqueIndex:idx_group_member_user;index" json:"-"`
-	Group            Group      `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	ID      uint64 `gorm:"primaryKey" json:"id"`
+	// 数据库列 group_id 存的是 groups.id（bigint），勿与 Group.GroupID（uuid 列 group_id）混淆；对 Group 做 Preload 时 GORM 易绑错列，仓库层用手动按 id 查询代替 Preload("Group")。
+	GroupID uint64 `gorm:"not null;uniqueIndex:idx_group_member_user;index" json:"-"`
+	Group   Group  `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	UserID           uint64     `gorm:"not null;uniqueIndex:idx_group_member_user;index" json:"user_id"`
 	User             ServerUser `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	Role             string     `gorm:"size:32;not null" json:"role"`

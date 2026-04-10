@@ -19,12 +19,12 @@ func (h *Handler) postChallenge(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		PeerID string `json:"peer_id"`
 	}
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.auth.RequestChallenge(r.Context(), request.PeerID)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -37,12 +37,12 @@ func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 		Signature   string `json:"signature"`
 		PublicKey   string `json:"public_key"`
 	}
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.auth.Login(r.Context(), request.PeerID, request.ChallengeID, request.Signature, request.PublicKey)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -59,7 +59,7 @@ func (h *Handler) getServerInfo(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getMyProfile(w http.ResponseWriter, r *http.Request) {
 	response, err := h.profile.GetProfile(r.Context(), currentUserID(r))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -70,7 +70,7 @@ func (h *Handler) getMyGroups(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	response, err := h.groups.ListMyGroups(r.Context(), currentUserID(r), limit, offset)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -78,12 +78,12 @@ func (h *Handler) getMyGroups(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) patchUserProfileByPeerID(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateProfileInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.profile.UpdateProfileByPeerID(r.Context(), currentUserID(r), chi.URLParam(r, "peer_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -91,12 +91,12 @@ func (h *Handler) patchUserProfileByPeerID(w http.ResponseWriter, r *http.Reques
 
 func (h *Handler) postGroups(w http.ResponseWriter, r *http.Request) {
 	var request service.CreateGroupInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.CreateGroup(r.Context(), currentUserID(r), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, response)
@@ -105,7 +105,7 @@ func (h *Handler) postGroups(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getGroup(w http.ResponseWriter, r *http.Request) {
 	response, err := h.groups.GetGroup(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -114,7 +114,7 @@ func (h *Handler) getGroup(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postGroupJoin(w http.ResponseWriter, r *http.Request) {
 	response, err := h.groups.JoinGroup(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -123,7 +123,7 @@ func (h *Handler) postGroupJoin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postGroupLeave(w http.ResponseWriter, r *http.Request) {
 	response, err := h.groups.LeaveGroup(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -131,12 +131,12 @@ func (h *Handler) postGroupLeave(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) patchGroup(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateGroupInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.UpdateGroup(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -144,12 +144,12 @@ func (h *Handler) patchGroup(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) postGroupTransferOwner(w http.ResponseWriter, r *http.Request) {
 	var request service.TransferGroupOwnershipInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.TransferOwnership(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -158,7 +158,7 @@ func (h *Handler) postGroupTransferOwner(w http.ResponseWriter, r *http.Request)
 func (h *Handler) postGroupDissolve(w http.ResponseWriter, r *http.Request) {
 	response, err := h.groups.DissolveGroup(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -167,12 +167,12 @@ func (h *Handler) postGroupDissolve(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postMemberInvite(w http.ResponseWriter, r *http.Request) {
 	targetUserID, err := parseUintParam(r, "user_id")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
 		return
 	}
 	response, err := h.groups.InviteMember(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), targetUserID)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -180,12 +180,12 @@ func (h *Handler) postMemberInvite(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) postMembersInvite(w http.ResponseWriter, r *http.Request) {
 	var request service.InviteGroupMembersInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.InviteMembersByPeerIDs(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -193,12 +193,12 @@ func (h *Handler) postMembersInvite(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) patchMessagePolicy(w http.ResponseWriter, r *http.Request) {
 	var request service.UpdateMessagePolicyInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.UpdateMessagePolicy(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -207,7 +207,7 @@ func (h *Handler) patchMessagePolicy(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getGroupMembers(w http.ResponseWriter, r *http.Request) {
 	response, err := h.groups.ListMembers(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -216,16 +216,16 @@ func (h *Handler) getGroupMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postMemberAdmin(w http.ResponseWriter, r *http.Request) {
 	targetUserID, err := parseUintParam(r, "user_id")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
 		return
 	}
 	var request service.SetGroupAdminInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.SetGroupAdmin(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), targetUserID, request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -234,16 +234,16 @@ func (h *Handler) postMemberAdmin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) patchMemberPermissions(w http.ResponseWriter, r *http.Request) {
 	targetUserID, err := parseUintParam(r, "user_id")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
 		return
 	}
 	var request service.UpdateMemberPermissionsInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.UpdateMemberPermissions(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), targetUserID, request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -252,16 +252,16 @@ func (h *Handler) patchMemberPermissions(w http.ResponseWriter, r *http.Request)
 func (h *Handler) postMemberMute(w http.ResponseWriter, r *http.Request) {
 	targetUserID, err := parseUintParam(r, "user_id")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
 		return
 	}
 	var request service.MuteMemberInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.groups.MuteMember(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), targetUserID, request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -270,12 +270,12 @@ func (h *Handler) postMemberMute(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postMemberBan(w http.ResponseWriter, r *http.Request) {
 	targetUserID, err := parseUintParam(r, "user_id")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_user_id", "user_id must be numeric"))
 		return
 	}
 	response, err := h.groups.BanMember(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), targetUserID)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -286,7 +286,7 @@ func (h *Handler) getMessages(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	response, err := h.message.ListMessages(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), beforeSeq, limit)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -300,12 +300,12 @@ func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request service.SendMessageInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.message.SendMessage(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, response)
@@ -313,20 +313,20 @@ func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_multipart", "multipart form is invalid"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_multipart", "multipart form is invalid"))
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "file_required", "multipart field 'file' is required"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "file_required", "multipart field 'file' is required"))
 		return
 	}
 	defer file.Close()
 
 	content, err := io.ReadAll(file)
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_file", "failed to read uploaded file"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_file", "failed to read uploaded file"))
 		return
 	}
 
@@ -343,13 +343,13 @@ func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) 
 		Content:  content,
 	})
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 
 	messageType, err := resolveUploadedMessageType(strings.TrimSpace(r.FormValue("content_type")), uploaded.MIMEType)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 
@@ -366,7 +366,7 @@ func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) 
 	switch messageType {
 	case model.MessageContentTypeImage:
 		if uploaded.Width == nil || uploaded.Height == nil || *uploaded.Width <= 0 || *uploaded.Height <= 0 {
-			writeError(w, apperrors.New(http.StatusBadRequest, "invalid_payload", "uploaded file is not a valid image"))
+			h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_payload", "uploaded file is not a valid image"))
 			return
 		}
 		payload = service.ImagePayload{
@@ -387,7 +387,7 @@ func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) 
 			Caption:  strings.TrimSpace(r.FormValue("caption")),
 		}
 	default:
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_content_type", "multipart messages only support image or file"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_content_type", "multipart messages only support image or file"))
 		return
 	}
 
@@ -399,7 +399,7 @@ func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) 
 		Signature:            strings.TrimSpace(r.FormValue("signature")),
 	})
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, response)
@@ -407,12 +407,12 @@ func (h *Handler) postMessagesMultipart(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) patchMessage(w http.ResponseWriter, r *http.Request) {
 	var request service.EditMessageInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.message.EditMessage(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), chi.URLParam(r, "message_id"), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -421,7 +421,7 @@ func (h *Handler) patchMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postMessageRetract(w http.ResponseWriter, r *http.Request) {
 	response, err := h.message.RetractMessage(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), chi.URLParam(r, "message_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -430,7 +430,7 @@ func (h *Handler) postMessageRetract(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postMessageDelete(w http.ResponseWriter, r *http.Request) {
 	response, err := h.message.DeleteMessage(r.Context(), currentUserID(r), chi.URLParam(r, "group_id"), chi.URLParam(r, "message_id"))
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -444,12 +444,12 @@ func (h *Handler) postFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request service.RegisterFileInput
-	if !decodeBody(w, r, &request) {
+	if !h.decodeBody(w, r, &request) {
 		return
 	}
 	response, err := h.files.Register(r.Context(), currentUserID(r), request)
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, response)
@@ -457,20 +457,20 @@ func (h *Handler) postFiles(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) postFilesMultipart(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_multipart", "multipart form is invalid"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_multipart", "multipart form is invalid"))
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "file_required", "multipart field 'file' is required"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "file_required", "multipart field 'file' is required"))
 		return
 	}
 	defer file.Close()
 
 	content, err := io.ReadAll(file)
 	if err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_file", "failed to read uploaded file"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_file", "failed to read uploaded file"))
 		return
 	}
 
@@ -487,17 +487,17 @@ func (h *Handler) postFilesMultipart(w http.ResponseWriter, r *http.Request) {
 		Content:  content,
 	})
 	if err != nil {
-		writeError(w, err)
+		h.writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, response)
 }
 
-func decodeBody(w http.ResponseWriter, r *http.Request, out any) bool {
+func (h *Handler) decodeBody(w http.ResponseWriter, r *http.Request, out any) bool {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(out); err != nil {
-		writeError(w, apperrors.New(http.StatusBadRequest, "invalid_json", "request body is invalid"))
+		h.writeError(w, apperrors.New(http.StatusBadRequest, "invalid_json", "request body is invalid"))
 		return false
 	}
 	return true
@@ -509,9 +509,9 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-func writeError(w http.ResponseWriter, err error) {
+func (h *Handler) writeError(w http.ResponseWriter, err error) {
 	writeJSON(w, apperrors.HTTPStatus(err), map[string]any{
-		"error": apperrors.Public(err),
+		"error": apperrors.PublicWithDetail(err, h.exposeInternalErrorDetail),
 	})
 }
 

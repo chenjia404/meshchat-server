@@ -13,30 +13,32 @@ import (
 )
 
 type Handler struct {
-	auth               *service.AuthService
-	profile            *service.ProfileService
-	groups             *service.GroupService
-	message            *service.MessageService
-	files              *service.FileService
-	dm                 *service.DMService
-	ws                 stdhttp.Handler
-	mode               string
-	ipfsGatewayPrefix  string
-	ipfsGatewayBaseURL string
+	auth                       *service.AuthService
+	profile                    *service.ProfileService
+	groups                     *service.GroupService
+	message                    *service.MessageService
+	files                      *service.FileService
+	dm                         *service.DMService
+	ws                         stdhttp.Handler
+	mode                       string
+	ipfsGatewayPrefix          string
+	ipfsGatewayBaseURL         string
+	exposeInternalErrorDetail  bool
 }
 
-func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string) *Handler {
+func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string, exposeInternalErrorDetail bool) *Handler {
 	return &Handler{
-		auth:               authService,
-		profile:            profile,
-		groups:             groupService,
-		message:            messageService,
-		files:              fileService,
-		dm:                 dmService,
-		ws:                 wsHandler,
-		mode:               serverMode,
-		ipfsGatewayPrefix:  ipfsGatewayPrefix,
-		ipfsGatewayBaseURL: ipfsGatewayBaseURL,
+		auth:                      authService,
+		profile:                   profile,
+		groups:                    groupService,
+		message:                   messageService,
+		files:                     fileService,
+		dm:                        dmService,
+		ws:                        wsHandler,
+		mode:                      serverMode,
+		ipfsGatewayPrefix:         ipfsGatewayPrefix,
+		ipfsGatewayBaseURL:        ipfsGatewayBaseURL,
+		exposeInternalErrorDetail: exposeInternalErrorDetail,
 	}
 }
 

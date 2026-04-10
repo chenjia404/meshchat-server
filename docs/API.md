@@ -40,6 +40,18 @@ Authorization: Bearer <jwt>
 }
 ```
 
+当服务端无法将错误映射为业务错误码时，会返回 `code: "internal_error"`。若环境变量 **`EXPOSE_INTERNAL_ERROR_DETAIL=true`**（默认 `false`，生产环境建议关闭），则对**非** `AppError` 的底层错误（如数据库错误）会在响应中附加 **`detail`** 字段，便于排查 5xx：
+
+```json
+{
+  "error": {
+    "code": "internal_error",
+    "message": "internal server error",
+    "detail": "ERROR: relation \"group_members\" does not exist (SQLSTATE 42P01)"
+  }
+}
+```
+
 常见错误码：
 
 - `missing_token`

@@ -10,6 +10,8 @@ type AppError struct {
 	StatusCode int    `json:"-"`
 	Code       string `json:"code"`
 	Message    string `json:"message"`
+	// Detail is set only when ExposeInternalErrorDetail is enabled and the error was not already an AppError.
+	Detail string `json:"detail,omitempty"`
 }
 
 func (e *AppError) Error() string {
@@ -38,13 +40,24 @@ func HTTPStatus(err error) int {
 }
 
 func Public(err error) *AppError {
+	return PublicWithDetail(err, false)
+}
+
+// PublicWithDetail mirrors [Public] but may attach err.Error() as Detail when exposeDetail is true
+// and err is not an *AppError (e.g. database/driver errors), to aid debugging 5xx responses.
+func PublicWithDetail(err error, exposeDetail bool) *AppError {
 	var appErr *AppError
 	if errors.As(err, &appErr) {
-		return appErr
+		out := *appErr
+		return &out
 	}
-	return &AppError{
+	e := &AppError{
 		StatusCode: http.StatusInternalServerError,
 		Code:       "internal_error",
 		Message:    "internal server error",
 	}
+	if exposeDetail && err != nil {
+		e.Detail = err.Error()
+	}
+	return e
 }

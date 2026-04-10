@@ -84,6 +84,7 @@ services:
       WS_PING_INTERVAL: 54s
       WS_SEND_BUFFER: 128
       ONLINE_TTL: 90s
+      EXPOSE_INTERNAL_ERROR_DETAIL: "true"
     ports:
       - "8581:8080"
       - "8582:8081"

@@ -35,7 +35,8 @@ type Config struct {
 	WSPongWait         time.Duration
 	WSPingInterval     time.Duration
 	WSSendBuffer       int
-	OnlineTTL          time.Duration
+	OnlineTTL                  time.Duration
+	ExposeInternalErrorDetail  bool
 }
 
 // Load builds config from environment variables with sensible local defaults.
@@ -67,7 +68,8 @@ func Load() Config {
 		WSPongWait:         getEnvDuration("WS_PONG_WAIT", 60*time.Second),
 		WSPingInterval:     getEnvDuration("WS_PING_INTERVAL", 54*time.Second),
 		WSSendBuffer:       getEnvInt("WS_SEND_BUFFER", 128),
-		OnlineTTL:          getEnvDuration("ONLINE_TTL", 90*time.Second),
+		OnlineTTL:                 getEnvDuration("ONLINE_TTL", 90*time.Second),
+		ExposeInternalErrorDetail: getEnvBool("EXPOSE_INTERNAL_ERROR_DETAIL", false),
 	}
 }
 
