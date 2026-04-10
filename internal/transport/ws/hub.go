@@ -11,6 +11,7 @@ type Client struct {
 	UserID    uint64
 	Send      chan []byte
 	groups    map[string]struct{}
+	dmRooms   map[string]struct{}
 	closeOnce sync.Once
 	closeFn   func()
 }
@@ -25,15 +26,17 @@ func (c *Client) close() {
 
 // Hub keeps track of local websocket clients and room subscriptions.
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[*Client]struct{}
-	groups  map[string]map[*Client]struct{}
+	mu            sync.RWMutex
+	clients       map[*Client]struct{}
+	groups        map[string]map[*Client]struct{}
+	dmConversations map[string]map[*Client]struct{}
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients: make(map[*Client]struct{}),
-		groups:  make(map[string]map[*Client]struct{}),
+		clients:         make(map[*Client]struct{}),
+		groups:          make(map[string]map[*Client]struct{}),
+		dmConversations: make(map[string]map[*Client]struct{}),
 	}
 }
 
@@ -44,6 +47,9 @@ func (h *Hub) Register(client *Client) {
 	if client.groups == nil {
 		client.groups = make(map[string]struct{})
 	}
+	if client.dmRooms == nil {
+		client.dmRooms = make(map[string]struct{})
+	}
 }
 
 func (h *Hub) Unregister(client *Client) {
@@ -53,6 +59,9 @@ func (h *Hub) Unregister(client *Client) {
 	delete(h.clients, client)
 	for groupID := range client.groups {
 		h.unsubscribeLocked(client, groupID)
+	}
+	for convID := range client.dmRooms {
+		h.unsubscribeDMLocked(client, convID)
 	}
 	close(client.Send)
 }
@@ -76,6 +85,57 @@ func (h *Hub) Unsubscribe(client *Client, groupIDs []string) {
 
 	for _, groupID := range groupIDs {
 		h.unsubscribeLocked(client, groupID)
+	}
+}
+
+func (h *Hub) SubscribeDM(client *Client, conversationIDs []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, convID := range conversationIDs {
+		if _, ok := h.dmConversations[convID]; !ok {
+			h.dmConversations[convID] = make(map[*Client]struct{})
+		}
+		h.dmConversations[convID][client] = struct{}{}
+		if client.dmRooms == nil {
+			client.dmRooms = make(map[string]struct{})
+		}
+		client.dmRooms[convID] = struct{}{}
+	}
+}
+
+func (h *Hub) UnsubscribeDM(client *Client, conversationIDs []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, convID := range conversationIDs {
+		h.unsubscribeDMLocked(client, convID)
+	}
+}
+
+func (h *Hub) BroadcastDM(conversationID string, renderer Renderer) {
+	h.mu.RLock()
+	room := h.dmConversations[conversationID]
+	clients := make([]*Client, 0, len(room))
+	for client := range room {
+		clients = append(clients, client)
+	}
+	h.mu.RUnlock()
+
+	cache := map[uint64][]byte{}
+	for _, client := range clients {
+		payload, ok := cache[client.UserID]
+		if !ok {
+			rendered, err := renderer(client.UserID)
+			if err != nil || len(rendered) == 0 {
+				continue
+			}
+			payload = rendered
+			cache[client.UserID] = rendered
+		}
+		select {
+		case client.Send <- payload:
+		default:
+			client.close()
+		}
 	}
 }
 
@@ -114,6 +174,16 @@ func (h *Hub) unsubscribeLocked(client *Client, groupID string) {
 		delete(members, client)
 		if len(members) == 0 {
 			delete(h.groups, groupID)
+		}
+	}
+}
+
+func (h *Hub) unsubscribeDMLocked(client *Client, conversationID string) {
+	delete(client.dmRooms, conversationID)
+	if members, ok := h.dmConversations[conversationID]; ok {
+		delete(members, client)
+		if len(members) == 0 {
+			delete(h.dmConversations, conversationID)
 		}
 	}
 }

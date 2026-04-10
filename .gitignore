@@ -10,3 +10,4 @@ docker-compose/ipfs-data/*
 !docker-compose/ipfs-data/.gitkeep
 
 .cache/
+*.exe

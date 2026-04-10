@@ -28,11 +28,15 @@ func (b *RedisBus) Publish(ctx context.Context, event Envelope) error {
 	if err != nil {
 		return err
 	}
-	return b.redis.Publish(ctx, redisx.GroupEventsChannel(event.GroupID), raw).Err()
+	ch := redisx.GroupEventsChannel(event.GroupID)
+	if event.ConversationID != "" {
+		ch = redisx.DMEventsChannel(event.ConversationID)
+	}
+	return b.redis.Publish(ctx, ch, raw).Err()
 }
 
 func (b *RedisBus) Consume(ctx context.Context, handler func(context.Context, Envelope) error) error {
-	pubsub := b.redis.PSubscribe(ctx, "chat:events:group:*")
+	pubsub := b.redis.PSubscribe(ctx, "chat:events:group:*", "chat:events:dm:*")
 	defer func() {
 		_ = pubsub.Close()
 	}()

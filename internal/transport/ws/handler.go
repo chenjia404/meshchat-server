@@ -19,12 +19,18 @@ type GroupAccessChecker interface {
 	CanAccessGroup(ctx context.Context, userID uint64, groupID string) bool
 }
 
+// DMAccessChecker 校验用户是否可订阅某 DM 会话。
+type DMAccessChecker interface {
+	CanAccessConversation(ctx context.Context, userID uint64, conversationID string) bool
+}
+
 type Handler struct {
 	hub          *Hub
 	jwt          *auth.JWTManager
 	redis        *redis.Client
 	log          *slog.Logger
 	checker      GroupAccessChecker
+	dmChecker    DMAccessChecker
 	sendBuffer   int
 	writeWait    time.Duration
 	pongWait     time.Duration
@@ -33,13 +39,14 @@ type Handler struct {
 	onlineTTL    time.Duration
 }
 
-func NewHandler(hub *Hub, jwt *auth.JWTManager, redis *redis.Client, checker GroupAccessChecker, logger *slog.Logger, sendBuffer int, writeWait, pongWait, pingInterval, onlineTTL time.Duration) *Handler {
+func NewHandler(hub *Hub, jwt *auth.JWTManager, redis *redis.Client, checker GroupAccessChecker, dmChecker DMAccessChecker, logger *slog.Logger, sendBuffer int, writeWait, pongWait, pingInterval, onlineTTL time.Duration) *Handler {
 	return &Handler{
 		hub:          hub,
 		jwt:          jwt,
 		redis:        redis,
 		log:          logger,
 		checker:      checker,
+		dmChecker:    dmChecker,
 		sendBuffer:   sendBuffer,
 		writeWait:    writeWait,
 		pongWait:     pongWait,
@@ -86,6 +93,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		UserID: claims.UserID,
 		Send:   make(chan []byte, bufferSize),
 		groups: make(map[string]struct{}),
+		dmRooms: make(map[string]struct{}),
 		closeFn: func() {
 			cancel()
 			_ = conn.Close()
@@ -110,8 +118,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type command struct {
-	Action   string   `json:"action"`
-	GroupIDs []string `json:"group_ids"`
+	Action            string   `json:"action"`
+	GroupIDs          []string `json:"group_ids"`
+	ConversationIDs   []string `json:"conversation_ids"`
 }
 
 func (h *Handler) readPump(ctx context.Context, conn *websocket.Conn, client *Client) {
@@ -148,6 +157,29 @@ func (h *Handler) readPump(ctx context.Context, conn *websocket.Conn, client *Cl
 			_ = conn.WriteJSON(map[string]any{
 				"type": "subscription.updated",
 				"data": map[string]any{"group_ids": []string{}},
+			})
+		case "subscribe_dm":
+			if h.dmChecker == nil {
+				continue
+			}
+			allowed := make([]string, 0, len(cmd.ConversationIDs))
+			for _, convID := range cmd.ConversationIDs {
+				if h.dmChecker.CanAccessConversation(ctx, client.UserID, convID) {
+					allowed = append(allowed, convID)
+				}
+			}
+			if len(allowed) > 0 {
+				h.hub.SubscribeDM(client, allowed)
+				_ = conn.WriteJSON(map[string]any{
+					"type": "subscription.updated",
+					"data": map[string]any{"dm_conversation_ids": allowed},
+				})
+			}
+		case "unsubscribe_dm":
+			h.hub.UnsubscribeDM(client, cmd.ConversationIDs)
+			_ = conn.WriteJSON(map[string]any{
+				"type": "subscription.updated",
+				"data": map[string]any{"dm_conversation_ids": []string{}},
 			})
 		}
 	}

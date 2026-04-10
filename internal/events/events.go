@@ -8,13 +8,17 @@ const (
 	EventGroupMessageDeleted  = "group.message.deleted"
 	EventGroupSettingsUpdated = "group.settings.updated"
 	EventGroupMemberUpdated   = "group.member.updated"
+
+	EventDMMessageCreated = "dm.message.created"
+	EventDMMessageAcked     = "dm.message.acked"
 )
 
 // Envelope is the cross-instance event format transported via Redis Pub/Sub.
 type Envelope struct {
-	Type      string    `json:"type"`
-	GroupID   string    `json:"group_id"`
-	MessageID string    `json:"message_id,omitempty"`
-	UserID    uint64    `json:"user_id,omitempty"`
-	At        time.Time `json:"at"`
+	Type             string    `json:"type"`
+	GroupID          string    `json:"group_id,omitempty"`
+	ConversationID   string    `json:"conversation_id,omitempty"`
+	MessageID        string    `json:"message_id,omitempty"`
+	UserID           uint64    `json:"user_id,omitempty"`
+	At               time.Time `json:"at"`
 }

@@ -34,6 +34,7 @@ type App struct {
 	hub             *wstransport.Hub
 	messages        *service.MessageService
 	groups          *service.GroupService
+	dm              *service.DMService
 }
 
 func New(cfg config.Config, logger *slog.Logger) (*App, error) {
@@ -65,6 +66,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	groupRepo := repo.NewGroupRepo(postgres)
 	messageRepo := repo.NewMessageRepo(postgres)
 	fileRepo := repo.NewFileRepo(postgres)
+	dmRepo := repo.NewDMRepo(postgres)
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
 	adminJWTManager := auth.NewAdminJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
@@ -75,16 +77,17 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	profileService := service.NewProfileService(userRepo, ipfsClient)
 	groupService := service.NewGroupService(groupRepo, userRepo, redisBus, ipfsClient, serverAdmins, cfg.ServerMode)
 	messageService := service.NewMessageService(groupRepo, messageRepo, redisClient, ipfsClient, redisBus)
+	dmService := service.NewDMService(dmRepo, userRepo, redisBus)
 	fileService := service.NewFileService(fileRepo, ipfsClient)
 	adminService := service.NewAdminService(userRepo, groupRepo, messageService, ipfsClient, redisBus, adminJWTManager, cfg.AdminUsername, cfg.AdminPassword)
 
 	hub := wstransport.NewHub()
-	wsHandler := wstransport.NewHandler(hub, jwtManager, redisClient, groupService, logger, cfg.WSSendBuffer, cfg.WSWriteWait, cfg.WSPongWait, cfg.WSPingInterval, cfg.OnlineTTL)
+	wsHandler := wstransport.NewHandler(hub, jwtManager, redisClient, groupService, dmService, logger, cfg.WSSendBuffer, cfg.WSWriteWait, cfg.WSPongWait, cfg.WSPingInterval, cfg.OnlineTTL)
 	ipfsGatewayPrefix := ""
 	if cfg.IPFSGatewayUpstreamURL != "" {
 		ipfsGatewayPrefix = "/ipfs"
 	}
-	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL)
+	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL)
 
 	var ipfsGatewayProxy http.Handler
 	if cfg.IPFSGatewayUpstreamURL != "" {
@@ -122,6 +125,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		hub:             hub,
 		messages:        messageService,
 		groups:          groupService,
+		dm:              dmService,
 	}, nil
 }
 
@@ -201,6 +205,17 @@ func (a *App) handleEvent(ctx context.Context, event events.Envelope) error {
 	case events.EventGroupMemberUpdated:
 		a.hub.BroadcastGroup(event.GroupID, func(userID uint64) ([]byte, error) {
 			envelope, err := a.groups.BuildMemberEventForUser(ctx, userID, event.GroupID, event.UserID)
+			if err != nil || envelope == nil {
+				return nil, err
+			}
+			return wstransport.MarshalEnvelope(envelope)
+		})
+	case events.EventDMMessageCreated, events.EventDMMessageAcked:
+		if a.dm == nil || event.ConversationID == "" {
+			break
+		}
+		a.hub.BroadcastDM(event.ConversationID, func(userID uint64) ([]byte, error) {
+			envelope, err := a.dm.BuildRealtimeDMEvent(ctx, userID, event)
 			if err != nil || envelope == nil {
 				return nil, err
 			}

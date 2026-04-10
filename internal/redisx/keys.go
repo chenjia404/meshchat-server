@@ -21,3 +21,7 @@ func OnlineGroupKey(groupID string, userID uint64) string {
 func GroupEventsChannel(groupID string) string {
 	return fmt.Sprintf("chat:events:group:%s", groupID)
 }
+
+func DMEventsChannel(conversationID string) string {
+	return fmt.Sprintf("chat:events:dm:%s", conversationID)
+}

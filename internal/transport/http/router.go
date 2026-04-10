@@ -18,19 +18,21 @@ type Handler struct {
 	groups             *service.GroupService
 	message            *service.MessageService
 	files              *service.FileService
+	dm                 *service.DMService
 	ws                 stdhttp.Handler
 	mode               string
 	ipfsGatewayPrefix  string
 	ipfsGatewayBaseURL string
 }
 
-func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string) *Handler {
+func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string) *Handler {
 	return &Handler{
 		auth:               authService,
 		profile:            profile,
 		groups:             groupService,
 		message:            messageService,
 		files:              fileService,
+		dm:                 dmService,
 		ws:                 wsHandler,
 		mode:               serverMode,
 		ipfsGatewayPrefix:  ipfsGatewayPrefix,
@@ -47,6 +49,7 @@ func NewRouter(handler *Handler, jwtManager *auth.JWTManager, recoverer func(std
 
 	if ipfsGatewayProxy != nil {
 		router.Handle("/ipfs/", ipfsGatewayProxy)
+		router.Handle("/ipfs/*", ipfsGatewayProxy)
 		router.Get("/ipfs", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 			stdhttp.Redirect(w, r, "/ipfs/", stdhttp.StatusTemporaryRedirect)
 		})
@@ -105,6 +108,12 @@ func registerHTTPAPI(r chi.Router, handler *Handler, jwtManager *auth.JWTManager
 		r.Post("/groups/{group_id}/messages/{message_id}/retract", handler.postMessageRetract)
 		r.Post("/groups/{group_id}/messages/{message_id}/delete", handler.postMessageDelete)
 		r.Post("/files", handler.postFiles)
+
+		r.Get("/dm/conversations", handler.getDMConversations)
+		r.Post("/dm/conversations", handler.postDMConversations)
+		r.Get("/dm/conversations/{conversation_id}/messages", handler.getDMMessages)
+		r.Post("/dm/conversations/{conversation_id}/messages", handler.postDMMessages)
+		r.Post("/dm/messages/{message_id}/ack", handler.postDMAck)
 	})
 }
 

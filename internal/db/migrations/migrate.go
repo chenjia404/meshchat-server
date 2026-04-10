@@ -32,9 +32,54 @@ func Run(ctx context.Context, db *gorm.DB) error {
 		if err := ensureGroupLastMessageAtColumn(tx); err != nil {
 			return err
 		}
+		if err := ensureDirectDMTables(tx); err != nil {
+			return err
+		}
 
 		return nil
 	})
+}
+
+func ensureDirectDMTables(tx *gorm.DB) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS "direct_conversations" (
+			"id" bigserial PRIMARY KEY,
+			"conversation_id" uuid NOT NULL,
+			"user_low_id" bigint NOT NULL,
+			"user_high_id" bigint NOT NULL,
+			"last_message_seq" bigint NOT NULL DEFAULT 0,
+			"last_message_at" timestamptz NOT NULL,
+			"created_at" timestamptz,
+			"updated_at" timestamptz
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_direct_conversations_uuid" ON "direct_conversations" ("conversation_id")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_direct_conversations_pair" ON "direct_conversations" ("user_low_id", "user_high_id")`,
+		`CREATE TABLE IF NOT EXISTS "direct_messages" (
+			"id" bigserial PRIMARY KEY,
+			"message_id" uuid NOT NULL,
+			"conversation_id" uuid NOT NULL,
+			"sender_user_id" bigint NOT NULL,
+			"recipient_user_id" bigint NOT NULL,
+			"client_msg_id" varchar(128) NOT NULL,
+			"content_type" varchar(32) NOT NULL,
+			"payload_json" jsonb NOT NULL,
+			"status" varchar(32) NOT NULL,
+			"seq" bigint NOT NULL,
+			"recipient_acked_at" timestamptz,
+			"created_at" timestamptz,
+			"updated_at" timestamptz
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_direct_messages_msg" ON "direct_messages" ("message_id")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_direct_messages_idem" ON "direct_messages" ("conversation_id", "sender_user_id", "client_msg_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_direct_messages_conv_seq" ON "direct_messages" ("conversation_id", "seq" DESC)`,
+		`CREATE INDEX IF NOT EXISTS "idx_direct_messages_recipient" ON "direct_messages" ("recipient_user_id")`,
+	}
+	for _, stmt := range stmts {
+		if err := tx.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("ensure direct dm tables: %w", err)
+		}
+	}
+	return nil
 }
 
 func ensureCanonicalGroupTables(tx *gorm.DB) error {

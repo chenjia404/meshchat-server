@@ -1007,6 +1007,84 @@ curl -X POST http://localhost:8080/api/files \
 - 使用 `application/json` 时，该接口仍然只登记元数据，不上传文件内容
 - 客户端可通过 CID 走 IPFS 网络或网关拉取内容
 
+## 6.7 私聊上游（DM relay / offline store）
+
+面向 **mesh-proxy** 等节点的上游中继与离线暂存，**不是**给 Android 直接对接的第二套私聊产品接口。私聊主模型仍在本地节点；此处仅提供持久化、幂等发送、ACK 与补拉。
+
+语义：**at-least-once**；发送按 `(conversation_id, sender_user_id, client_msg_id)` 幂等；ACK 幂等；先写 PostgreSQL 再经 WebSocket / Redis 投递。
+
+首期仅支持 `content_type: text`。
+
+### GET /api/dm/conversations
+
+列出当前登录用户参与的所有 DM 会话。
+
+响应：`DMConversationView[]`：
+
+- `conversation_id`：会话 UUID
+- `peer_id`：对端用户的 libp2p `peer_id`
+- `last_message_seq`：该会话最后一条消息的序号
+- `last_message_at`：RFC3339 时间
+
+### POST /api/dm/conversations
+
+按对端 `peer_id` 创建或返回已有会话。对端须已在服务端有过登录记录（`server_users` 中存在）。
+
+请求体：
+
+```json
+{
+  "peer_id": "12D3KooW..."
+}
+```
+
+响应：`DMConversationView`。
+
+### GET /api/dm/conversations/{conversation_id}/messages
+
+查询参数：
+
+- `before_seq`（可选）：向前翻页，返回 `seq < before_seq` 的消息，按时间正序排列（默认 `limit=50`，最大 `100`）
+- `after_seq`（可选）：增量补拉，返回 `seq > after_seq` 的消息（与 `before_seq` 二选一优先使用 `after_seq`）
+- `limit`（可选）
+
+响应：`DMMessageView[]`（结构见下）。
+
+### POST /api/dm/conversations/{conversation_id}/messages
+
+发送消息（先持久化再投递）。
+
+请求体：
+
+```json
+{
+  "client_msg_id": "客户端生成的幂等键",
+  "content_type": "text",
+  "payload": { "text": "hello" }
+}
+```
+
+响应：`DMMessageView`（201 Created；重复 `client_msg_id` 时返回已存在消息，仍为成功响应）。
+
+`DMMessageView` 字段包括：
+
+- `message_id`、`conversation_id`、`seq`
+- `content_type`、`payload`
+- `sender_user_id`、`recipient_user_id`
+- `sender_peer_id`、`recipient_peer_id`
+- `client_msg_id`
+- `status`：`pending_ack` | `acked`
+- `recipient_acked_at`（可选）
+- `created_at`
+
+### POST /api/dm/messages/{message_id}/ack
+
+接收方确认消息（仅 `recipient_user_id` 可调用，幂等）。
+
+响应：最新 `DMMessageView`。
+
+错误示例：`403` 非接收方 ACK；`404` 消息不存在。
+
 ## 7. WebSocket 协议
 
 ## 7.1 建立连接
@@ -1042,6 +1120,30 @@ GET /api/ws?token=<jwt>
 }
 ```
 
+### 订阅 DM 会话
+
+```json
+{
+  "action": "subscribe_dm",
+  "conversation_ids": [
+    "7a5682a3-8ff9-42a9-85b9-1d4c41d95c20"
+  ]
+}
+```
+
+仅当当前用户为该会话参与者时才会加入订阅。
+
+### 取消订阅 DM
+
+```json
+{
+  "action": "unsubscribe_dm",
+  "conversation_ids": [
+    "7a5682a3-8ff9-42a9-85b9-1d4c41d95c20"
+  ]
+}
+```
+
 ### 订阅确认响应
 
 ```json
@@ -1054,6 +1156,8 @@ GET /api/ws?token=<jwt>
   }
 }
 ```
+
+DM 订阅成功时，同一条 `subscription.updated` 的 `data` 中可包含 `dm_conversation_ids` 数组（与群 `group_ids` 字段可并存于不同请求中）。
 
 ## 7.3 服务端事件格式
 
@@ -1073,12 +1177,15 @@ GET /api/ws?token=<jwt>
 - `group.message.deleted`
 - `group.settings.updated`
 - `group.member.updated`
+- `dm.message.created`
+- `dm.message.acked`
 
 各事件的 `data` 分别对应：
 
 - 消息事件：`Message`
 - 群设置事件：`Group`
 - 成员事件：`GroupMember`
+- `dm.message.created` / `dm.message.acked`：`{ "conversation_id": "<uuid>", "message": <DMMessageView> }`
 
 ## 8. 行为约束
 

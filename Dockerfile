@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/meshchat-server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build  -trimpath  -o /out/meshchat-server ./cmd/server
 
 FROM alpine:latest
 
