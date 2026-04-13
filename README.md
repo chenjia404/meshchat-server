@@ -246,6 +246,7 @@ curl -X POST http://localhost:8080/api/files \
 - 当前群主可以将群转让给本群的其他活跃成员，转让后原群主自动变为管理员。
 - 公开群支持 `POST /api/groups/{group_id}/join` 自助加入，加入后才能在该群发言。
 - `GET /api/me/groups` 可以列出当前用户所有已加入的群聊。
+- **好友请求信箱**（补充通道）：`GET/POST /api/friend-mailbox/requests` 及接受/拒绝，供 mesh-proxy 等在 P2P 不可达时同步「加好友意向」；详见 `docs/API.md` §6.8，不替代本地 Session 握手。
 - 群主、群管理员和服务器管理员支持 `POST /api/groups/{group_id}/members/{user_id}/invite` 邀请用户入群，邀请后目标用户直接变为活跃成员。
 - 也支持 `POST /api/groups/{group_id}/members/invite` 传入 `peer_id` 列表批量邀请，服务器会为不存在的 `peer_id` 自动创建本地用户记录。
 - `POST /api/groups/{group_id}/leave` 支持主动退出群聊，退出后不再拥有该群权限；公开群后续仍可重新加入。

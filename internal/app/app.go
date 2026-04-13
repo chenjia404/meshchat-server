@@ -67,6 +67,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	messageRepo := repo.NewMessageRepo(postgres)
 	fileRepo := repo.NewFileRepo(postgres)
 	dmRepo := repo.NewDMRepo(postgres)
+	friendMailboxRepo := repo.NewFriendMailboxRepo(postgres)
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
 	adminJWTManager := auth.NewAdminJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
@@ -78,6 +79,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	groupService := service.NewGroupService(groupRepo, userRepo, redisBus, ipfsClient, serverAdmins, cfg.ServerMode)
 	messageService := service.NewMessageService(groupRepo, messageRepo, redisClient, ipfsClient, redisBus)
 	dmService := service.NewDMService(dmRepo, userRepo, redisBus)
+	friendMailboxService := service.NewFriendMailboxService(friendMailboxRepo, userRepo)
 	fileService := service.NewFileService(fileRepo, ipfsClient)
 	adminService := service.NewAdminService(userRepo, groupRepo, messageService, ipfsClient, redisBus, adminJWTManager, cfg.AdminUsername, cfg.AdminPassword)
 
@@ -87,7 +89,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if cfg.IPFSGatewayUpstreamURL != "" {
 		ipfsGatewayPrefix = "/ipfs"
 	}
-	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL, cfg.ExposeInternalErrorDetail)
+	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, friendMailboxService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL, cfg.ExposeInternalErrorDetail)
 
 	var ipfsGatewayProxy http.Handler
 	if cfg.IPFSGatewayUpstreamURL != "" {

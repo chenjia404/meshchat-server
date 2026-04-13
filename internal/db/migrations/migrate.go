@@ -35,6 +35,9 @@ func Run(ctx context.Context, db *gorm.DB) error {
 		if err := ensureDirectDMTables(tx); err != nil {
 			return err
 		}
+		if err := ensureFriendMailboxTables(tx); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -78,6 +81,41 @@ func ensureDirectDMTables(tx *gorm.DB) error {
 		if err := tx.Exec(stmt).Error; err != nil {
 			return fmt.Errorf("ensure direct dm tables: %w", err)
 		}
+	}
+	return nil
+}
+
+func ensureFriendMailboxTables(tx *gorm.DB) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS "friend_mailbox_requests" (
+			"id" bigserial PRIMARY KEY,
+			"request_id" varchar(36) NOT NULL,
+			"from_peer_id" varchar(255) NOT NULL,
+			"to_peer_id" varchar(255) NOT NULL,
+			"state" varchar(32) NOT NULL,
+			"intro_text" text NOT NULL DEFAULT '',
+			"nickname" varchar(128) NOT NULL DEFAULT '',
+			"bio" varchar(1024) NOT NULL DEFAULT '',
+			"avatar_cid" varchar(255) NOT NULL DEFAULT '',
+			"created_at" timestamptz,
+			"updated_at" timestamptz
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_friend_mailbox_request_id" ON "friend_mailbox_requests" ("request_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_friend_mailbox_to" ON "friend_mailbox_requests" ("to_peer_id", "state")`,
+		`CREATE INDEX IF NOT EXISTS "idx_friend_mailbox_from" ON "friend_mailbox_requests" ("from_peer_id", "state")`,
+	}
+	for _, stmt := range stmts {
+		if err := tx.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("ensure friend mailbox tables: %w", err)
+		}
+	}
+	// 同一对 peer 仅允许一条 pending（PostgreSQL 部分唯一索引）
+	if err := tx.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_mailbox_pending_pair
+		ON friend_mailbox_requests (from_peer_id, to_peer_id)
+		WHERE state = 'pending'
+	`).Error; err != nil {
+		return fmt.Errorf("ensure friend mailbox partial index: %w", err)
 	}
 	return nil
 }

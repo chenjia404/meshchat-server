@@ -19,6 +19,7 @@ type Handler struct {
 	message                    *service.MessageService
 	files                      *service.FileService
 	dm                         *service.DMService
+	friendMailbox              *service.FriendMailboxService
 	ws                         stdhttp.Handler
 	mode                       string
 	ipfsGatewayPrefix          string
@@ -26,7 +27,7 @@ type Handler struct {
 	exposeInternalErrorDetail  bool
 }
 
-func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string, exposeInternalErrorDetail bool) *Handler {
+func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, friendMailbox *service.FriendMailboxService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string, exposeInternalErrorDetail bool) *Handler {
 	return &Handler{
 		auth:                      authService,
 		profile:                   profile,
@@ -34,6 +35,7 @@ func NewHandler(authService *service.AuthService, profile *service.ProfileServic
 		message:                   messageService,
 		files:                     fileService,
 		dm:                        dmService,
+		friendMailbox:             friendMailbox,
 		ws:                        wsHandler,
 		mode:                      serverMode,
 		ipfsGatewayPrefix:         ipfsGatewayPrefix,
@@ -116,6 +118,11 @@ func registerHTTPAPI(r chi.Router, handler *Handler, jwtManager *auth.JWTManager
 		r.Get("/dm/conversations/{conversation_id}/messages", handler.getDMMessages)
 		r.Post("/dm/conversations/{conversation_id}/messages", handler.postDMMessages)
 		r.Post("/dm/messages/{message_id}/ack", handler.postDMAck)
+
+		r.Get("/friend-mailbox/requests", handler.getFriendMailboxRequests)
+		r.Post("/friend-mailbox/requests", handler.postFriendMailboxRequest)
+		r.Post("/friend-mailbox/requests/{request_id}/accept", handler.postFriendMailboxAccept)
+		r.Post("/friend-mailbox/requests/{request_id}/reject", handler.postFriendMailboxReject)
 	})
 }
 

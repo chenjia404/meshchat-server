@@ -1097,6 +1097,52 @@ curl -X POST http://localhost:8080/api/files \
 
 错误示例：`403` 非接收方 ACK；`404` 消息不存在。
 
+## 6.8 好友请求信箱（补充通道）
+
+面向 **mesh-proxy** 等本地节点：在 P2P 不可达时，将「加好友意向」缓存在服务端，**不替代** mesh-proxy 内的 `SessionRequest` / 加密握手与 `SendRequest`/`AcceptRequest` 完整逻辑。双方仍需在本地完成真实好友建立；信箱仅作**元数据同步**与离线提示。
+
+约束：
+
+- 发件/收件人须均已在该 meshchat-server 登录过（`server_users` 中存在对端 `peer_id`）
+- 同一对 `from_peer_id` + `to_peer_id` 在 `pending` 状态下至多一条（重复创建返回 `409 mailbox_pending_exists`）
+- 响应 JSON 字段与 mesh-proxy `GET /api/v1/chat/requests` 尽量对齐（如 `request_id`、`from_peer_id`、`intro_text`、`avatar` 等），便于转发
+
+### GET /api/friend-mailbox/requests
+
+列出与当前用户 `peer_id` 相关的所有记录（发出或收到），按 `updated_at` 倒序。
+
+响应：`FriendMailboxView[]`（每项含 `request_id`、`from_peer_id`、`to_peer_id`、`state`、`intro_text`、`nickname`、`bio`、`avatar`（实为 `avatar_cid`）、`retention_minutes`（当前为 `0`）、`created_at`、`updated_at`）。
+
+### POST /api/friend-mailbox/requests
+
+创建一条待发记录（发件人为当前 JWT 对应用户）。
+
+请求体：
+
+```json
+{
+  "to_peer_id": "12D3KooW...",
+  "intro_text": "你好",
+  "nickname": "",
+  "bio": "",
+  "avatar_cid": ""
+}
+```
+
+后三项可选；省略时服务端用发件人当前资料快照填充。
+
+响应：`FriendMailboxView`（201 Created）。
+
+### POST /api/friend-mailbox/requests/{request_id}/accept
+
+仅 **`to_peer_id` 与当前用户一致**时可接受。响应：更新后的 `FriendMailboxView`。
+
+### POST /api/friend-mailbox/requests/{request_id}/reject
+
+仅收件人可拒绝。响应：`{ "status": "rejected" }`。
+
+**mesh-proxy 对接建议**：使用与用户相同的 `POST /api/auth/login` 获取 JWT，在后台异步调用上述接口；与本地 `SendRequest`/`ListRequests` 合并展示时注意按 `request_id` 去重。
+
 ## 7. WebSocket 协议
 
 ## 7.1 建立连接
