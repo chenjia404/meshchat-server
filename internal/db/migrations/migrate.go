@@ -35,12 +35,27 @@ func Run(ctx context.Context, db *gorm.DB) error {
 		if err := ensureDirectDMTables(tx); err != nil {
 			return err
 		}
+		if err := ensurePublicChannelTables(tx); err != nil {
+			return err
+		}
 		if err := ensureFriendMailboxTables(tx); err != nil {
 			return err
 		}
 
 		return nil
 	})
+}
+
+func ensurePublicChannelTables(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(
+		&model.PublicChannel{},
+		&model.PublicChannelMessage{},
+		&model.PublicChannelChange{},
+		&model.PublicChannelSubscription{},
+	); err != nil {
+		return fmt.Errorf("ensure public channel tables: %w", err)
+	}
+	return nil
 }
 
 func ensureDirectDMTables(tx *gorm.DB) error {

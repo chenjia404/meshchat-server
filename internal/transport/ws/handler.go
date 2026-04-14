@@ -24,6 +24,10 @@ type DMAccessChecker interface {
 	CanAccessConversation(ctx context.Context, userID uint64, conversationID string) bool
 }
 
+type PublicChannelAccessChecker interface {
+	CanAccessChannel(ctx context.Context, userID uint64, channelID string) bool
+}
+
 type Handler struct {
 	hub          *Hub
 	jwt          *auth.JWTManager
@@ -31,6 +35,7 @@ type Handler struct {
 	log          *slog.Logger
 	checker      GroupAccessChecker
 	dmChecker    DMAccessChecker
+	publicChannelChecker PublicChannelAccessChecker
 	sendBuffer   int
 	writeWait    time.Duration
 	pongWait     time.Duration
@@ -39,7 +44,7 @@ type Handler struct {
 	onlineTTL    time.Duration
 }
 
-func NewHandler(hub *Hub, jwt *auth.JWTManager, redis *redis.Client, checker GroupAccessChecker, dmChecker DMAccessChecker, logger *slog.Logger, sendBuffer int, writeWait, pongWait, pingInterval, onlineTTL time.Duration) *Handler {
+func NewHandler(hub *Hub, jwt *auth.JWTManager, redis *redis.Client, checker GroupAccessChecker, dmChecker DMAccessChecker, publicChannelChecker PublicChannelAccessChecker, logger *slog.Logger, sendBuffer int, writeWait, pongWait, pingInterval, onlineTTL time.Duration) *Handler {
 	return &Handler{
 		hub:          hub,
 		jwt:          jwt,
@@ -47,6 +52,7 @@ func NewHandler(hub *Hub, jwt *auth.JWTManager, redis *redis.Client, checker Gro
 		log:          logger,
 		checker:      checker,
 		dmChecker:    dmChecker,
+		publicChannelChecker: publicChannelChecker,
 		sendBuffer:   sendBuffer,
 		writeWait:    writeWait,
 		pongWait:     pongWait,
@@ -94,6 +100,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Send:   make(chan []byte, bufferSize),
 		groups: make(map[string]struct{}),
 		dmRooms: make(map[string]struct{}),
+		publicChannels: make(map[string]struct{}),
 		closeFn: func() {
 			cancel()
 			_ = conn.Close()
@@ -121,6 +128,7 @@ type command struct {
 	Action            string   `json:"action"`
 	GroupIDs          []string `json:"group_ids"`
 	ConversationIDs   []string `json:"conversation_ids"`
+	ChannelIDs        []string `json:"channel_ids"`
 }
 
 func (h *Handler) readPump(ctx context.Context, conn *websocket.Conn, client *Client) {
@@ -180,6 +188,29 @@ func (h *Handler) readPump(ctx context.Context, conn *websocket.Conn, client *Cl
 			_ = conn.WriteJSON(map[string]any{
 				"type": "subscription.updated",
 				"data": map[string]any{"dm_conversation_ids": []string{}},
+			})
+		case "subscribe_public_channels":
+			if h.publicChannelChecker == nil {
+				continue
+			}
+			allowed := make([]string, 0, len(cmd.ChannelIDs))
+			for _, channelID := range cmd.ChannelIDs {
+				if h.publicChannelChecker.CanAccessChannel(ctx, client.UserID, channelID) {
+					allowed = append(allowed, channelID)
+				}
+			}
+			if len(allowed) > 0 {
+				h.hub.SubscribePublicChannel(client, allowed)
+				_ = conn.WriteJSON(map[string]any{
+					"type": "subscription.updated",
+					"data": map[string]any{"public_channel_ids": allowed},
+				})
+			}
+		case "unsubscribe_public_channels":
+			h.hub.UnsubscribePublicChannel(client, cmd.ChannelIDs)
+			_ = conn.WriteJSON(map[string]any{
+				"type": "subscription.updated",
+				"data": map[string]any{"public_channel_ids": []string{}},
 			})
 		}
 	}

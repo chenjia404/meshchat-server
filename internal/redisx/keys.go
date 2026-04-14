@@ -25,3 +25,7 @@ func GroupEventsChannel(groupID string) string {
 func DMEventsChannel(conversationID string) string {
 	return fmt.Sprintf("chat:events:dm:%s", conversationID)
 }
+
+func PublicChannelEventsChannel(channelID string) string {
+	return fmt.Sprintf("chat:events:publicchannel:%s", channelID)
+}

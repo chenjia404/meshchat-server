@@ -1097,6 +1097,63 @@ curl -X POST http://localhost:8080/api/files \
 
 错误示例：`403` 非接收方 ACK；`404` 消息不存在。
 
+## 6.7.1 Public Channel
+
+面向 `mesh-proxy` 在 `chat.server_mode=true` 时的公开频道上游。该能力与 mesh-proxy 本地 `publicchannel` 数据结构保持接近，方便 proxy 直接把服务端结果落到本地 SQLite 缓存。
+
+主要路由：
+
+- `GET /api/public-channels?owner_peer_id=<peer_id>`
+- `GET /api/public-channels/subscriptions`
+- `POST /api/public-channels`
+- `GET /api/public-channels/{channel_id}`
+- `PATCH /api/public-channels/{channel_id}`
+- `POST /api/public-channels/{channel_id}/subscribe`
+- `GET /api/public-channels/{channel_id}/head`
+- `GET /api/public-channels/{channel_id}/changes?after_seq=<n>&limit=<n>`
+- `GET /api/public-channels/{channel_id}/messages?before_message_id=<n>&limit=<n>`
+- `GET /api/public-channels/{channel_id}/messages/{message_id}`
+- `POST /api/public-channels/{channel_id}/messages`
+- `PATCH /api/public-channels/{channel_id}/messages/{message_id}`
+- `DELETE /api/public-channels/{channel_id}/messages/{message_id}`
+
+约定：
+
+- `channel_id` 使用 `ownerPeerID:uuidv7` 形式
+- `message_id`、`seq`、`profile_version`、`owner_version` 为整型
+- 频道写操作仅当前频道 owner 可执行
+- `subscribe` 会为当前用户写入一条订阅记录，并返回 `profile/head/messages/providers`
+- `changes` 返回增量同步流：`change_type=profile|message`
+- `message_type` 与 mesh-proxy 公开频道保持一致：`text`、`image`、`video`、`audio`、`file`、`system`、`deleted`
+
+消息写入/编辑请求体：
+
+```json
+{
+  "message_type": "text",
+  "text": "hello",
+  "files": []
+}
+```
+
+频道创建/更新请求体：
+
+```json
+{
+  "name": "频道名",
+  "bio": "简介",
+  "avatar": {
+    "file_name": "cover.png",
+    "mime_type": "image/png",
+    "size": 12345,
+    "sha256": "...",
+    "blob_id": "bafy...",
+    "url": "/ipfs/bafy.../cover.png"
+  },
+  "message_retention_minutes": 1440
+}
+```
+
 ## 6.8 好友请求信箱（补充通道）
 
 面向 **mesh-proxy** 等本地节点：在 P2P 不可达时，将「加好友意向」缓存在服务端，**不替代** mesh-proxy 内的 `SessionRequest` / 加密握手与 `SendRequest`/`AcceptRequest` 完整逻辑。双方仍需在本地完成真实好友建立；信箱仅作**元数据同步**与离线提示。
@@ -1202,6 +1259,28 @@ GET /api/ws?token=<jwt>
 }
 ```
 
+### 订阅 Public Channel
+
+```json
+{
+  "action": "subscribe_public_channels",
+  "channel_ids": [
+    "12D3KooW...:0195f3f0-8d4a-7c12-b2c1-9db1f0a9e123"
+  ]
+}
+```
+
+### 取消订阅 Public Channel
+
+```json
+{
+  "action": "unsubscribe_public_channels",
+  "channel_ids": [
+    "12D3KooW...:0195f3f0-8d4a-7c12-b2c1-9db1f0a9e123"
+  ]
+}
+```
+
 ### 订阅确认响应
 
 ```json
@@ -1216,6 +1295,8 @@ GET /api/ws?token=<jwt>
 ```
 
 DM 订阅成功时，同一条 `subscription.updated` 的 `data` 中可包含 `dm_conversation_ids` 数组（与群 `group_ids` 字段可并存于不同请求中）。
+
+Public Channel 订阅成功时，同一条 `subscription.updated` 的 `data` 中可包含 `public_channel_ids` 数组。
 
 ## 7.3 服务端事件格式
 
@@ -1237,6 +1318,10 @@ DM 订阅成功时，同一条 `subscription.updated` 的 `data` 中可包含 `d
 - `group.member.updated`
 - `dm.message.created`
 - `dm.message.acked`
+- `publicchannel.profile.updated`
+- `publicchannel.message.created`
+- `publicchannel.message.updated`
+- `publicchannel.message.deleted`
 
 各事件的 `data` 分别对应：
 
@@ -1244,6 +1329,8 @@ DM 订阅成功时，同一条 `subscription.updated` 的 `data` 中可包含 `d
 - 群设置事件：`Group`
 - 成员事件：`GroupMember`
 - `dm.message.created` / `dm.message.acked`：`{ "conversation_id": "<uuid>", "message": <DMMessageView> }`
+- `publicchannel.profile.updated`：`{ "channel_id": "<channel_id>", "profile": <ChannelProfile>, "head": <ChannelHead> }`
+- `publicchannel.message.created` / `publicchannel.message.updated` / `publicchannel.message.deleted`：`{ "channel_id": "<channel_id>", "message": <ChannelMessage> }`
 
 ## 8. 行为约束
 

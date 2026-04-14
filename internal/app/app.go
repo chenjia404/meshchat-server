@@ -35,6 +35,7 @@ type App struct {
 	messages        *service.MessageService
 	groups          *service.GroupService
 	dm              *service.DMService
+	publicChannels  *service.PublicChannelService
 }
 
 func New(cfg config.Config, logger *slog.Logger) (*App, error) {
@@ -67,6 +68,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	messageRepo := repo.NewMessageRepo(postgres)
 	fileRepo := repo.NewFileRepo(postgres)
 	dmRepo := repo.NewDMRepo(postgres)
+	publicChannelRepo := repo.NewPublicChannelRepo(postgres)
 	friendMailboxRepo := repo.NewFriendMailboxRepo(postgres)
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
@@ -79,17 +81,18 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	groupService := service.NewGroupService(groupRepo, userRepo, redisBus, ipfsClient, serverAdmins, cfg.ServerMode)
 	messageService := service.NewMessageService(groupRepo, messageRepo, redisClient, ipfsClient, redisBus)
 	dmService := service.NewDMService(dmRepo, userRepo, redisBus)
+	publicChannelService := service.NewPublicChannelService(publicChannelRepo, userRepo, redisBus)
 	friendMailboxService := service.NewFriendMailboxService(friendMailboxRepo, userRepo)
 	fileService := service.NewFileService(fileRepo, ipfsClient)
 	adminService := service.NewAdminService(userRepo, groupRepo, messageService, ipfsClient, redisBus, adminJWTManager, cfg.AdminUsername, cfg.AdminPassword)
 
 	hub := wstransport.NewHub()
-	wsHandler := wstransport.NewHandler(hub, jwtManager, redisClient, groupService, dmService, logger, cfg.WSSendBuffer, cfg.WSWriteWait, cfg.WSPongWait, cfg.WSPingInterval, cfg.OnlineTTL)
+	wsHandler := wstransport.NewHandler(hub, jwtManager, redisClient, groupService, dmService, publicChannelService, logger, cfg.WSSendBuffer, cfg.WSWriteWait, cfg.WSPongWait, cfg.WSPingInterval, cfg.OnlineTTL)
 	ipfsGatewayPrefix := ""
 	if cfg.IPFSGatewayUpstreamURL != "" {
 		ipfsGatewayPrefix = "/ipfs"
 	}
-	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, friendMailboxService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL, cfg.ExposeInternalErrorDetail)
+	httpHandler := httptransport.NewHandler(authService, profileService, groupService, messageService, fileService, dmService, publicChannelService, friendMailboxService, wsHandler, cfg.ServerMode, ipfsGatewayPrefix, cfg.IPFSGatewayBaseURL, cfg.ExposeInternalErrorDetail)
 
 	var ipfsGatewayProxy http.Handler
 	if cfg.IPFSGatewayUpstreamURL != "" {
@@ -128,6 +131,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		messages:        messageService,
 		groups:          groupService,
 		dm:              dmService,
+		publicChannels:  publicChannelService,
 	}, nil
 }
 
@@ -218,6 +222,17 @@ func (a *App) handleEvent(ctx context.Context, event events.Envelope) error {
 		}
 		a.hub.BroadcastDM(event.ConversationID, func(userID uint64) ([]byte, error) {
 			envelope, err := a.dm.BuildRealtimeDMEvent(ctx, userID, event)
+			if err != nil || envelope == nil {
+				return nil, err
+			}
+			return wstransport.MarshalEnvelope(envelope)
+		})
+	case events.EventPublicChannelProfileUpdated, events.EventPublicChannelMessageCreated, events.EventPublicChannelMessageUpdated, events.EventPublicChannelMessageDeleted:
+		if a.publicChannels == nil || event.ChannelID == "" {
+			break
+		}
+		a.hub.BroadcastPublicChannel(event.ChannelID, func(userID uint64) ([]byte, error) {
+			envelope, err := a.publicChannels.BuildRealtimePublicChannelEvent(ctx, userID, event)
 			if err != nil || envelope == nil {
 				return nil, err
 			}

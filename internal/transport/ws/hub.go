@@ -8,12 +8,13 @@ import (
 type Renderer func(userID uint64) ([]byte, error)
 
 type Client struct {
-	UserID    uint64
-	Send      chan []byte
-	groups    map[string]struct{}
-	dmRooms   map[string]struct{}
-	closeOnce sync.Once
-	closeFn   func()
+	UserID          uint64
+	Send            chan []byte
+	groups          map[string]struct{}
+	dmRooms         map[string]struct{}
+	publicChannels  map[string]struct{}
+	closeOnce       sync.Once
+	closeFn         func()
 }
 
 func (c *Client) close() {
@@ -30,6 +31,7 @@ type Hub struct {
 	clients       map[*Client]struct{}
 	groups        map[string]map[*Client]struct{}
 	dmConversations map[string]map[*Client]struct{}
+	publicChannels map[string]map[*Client]struct{}
 }
 
 func NewHub() *Hub {
@@ -37,6 +39,7 @@ func NewHub() *Hub {
 		clients:         make(map[*Client]struct{}),
 		groups:          make(map[string]map[*Client]struct{}),
 		dmConversations: make(map[string]map[*Client]struct{}),
+		publicChannels:  make(map[string]map[*Client]struct{}),
 	}
 }
 
@@ -50,6 +53,9 @@ func (h *Hub) Register(client *Client) {
 	if client.dmRooms == nil {
 		client.dmRooms = make(map[string]struct{})
 	}
+	if client.publicChannels == nil {
+		client.publicChannels = make(map[string]struct{})
+	}
 }
 
 func (h *Hub) Unregister(client *Client) {
@@ -62,6 +68,9 @@ func (h *Hub) Unregister(client *Client) {
 	}
 	for convID := range client.dmRooms {
 		h.unsubscribeDMLocked(client, convID)
+	}
+	for channelID := range client.publicChannels {
+		h.unsubscribePublicChannelLocked(client, channelID)
 	}
 	close(client.Send)
 }
@@ -139,6 +148,57 @@ func (h *Hub) BroadcastDM(conversationID string, renderer Renderer) {
 	}
 }
 
+func (h *Hub) SubscribePublicChannel(client *Client, channelIDs []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, channelID := range channelIDs {
+		if _, ok := h.publicChannels[channelID]; !ok {
+			h.publicChannels[channelID] = make(map[*Client]struct{})
+		}
+		h.publicChannels[channelID][client] = struct{}{}
+		if client.publicChannels == nil {
+			client.publicChannels = make(map[string]struct{})
+		}
+		client.publicChannels[channelID] = struct{}{}
+	}
+}
+
+func (h *Hub) UnsubscribePublicChannel(client *Client, channelIDs []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, channelID := range channelIDs {
+		h.unsubscribePublicChannelLocked(client, channelID)
+	}
+}
+
+func (h *Hub) BroadcastPublicChannel(channelID string, renderer Renderer) {
+	h.mu.RLock()
+	room := h.publicChannels[channelID]
+	clients := make([]*Client, 0, len(room))
+	for client := range room {
+		clients = append(clients, client)
+	}
+	h.mu.RUnlock()
+
+	cache := map[uint64][]byte{}
+	for _, client := range clients {
+		payload, ok := cache[client.UserID]
+		if !ok {
+			rendered, err := renderer(client.UserID)
+			if err != nil || len(rendered) == 0 {
+				continue
+			}
+			payload = rendered
+			cache[client.UserID] = rendered
+		}
+		select {
+		case client.Send <- payload:
+		default:
+			client.close()
+		}
+	}
+}
+
 func (h *Hub) BroadcastGroup(groupID string, renderer Renderer) {
 	h.mu.RLock()
 	groupClients := h.groups[groupID]
@@ -184,6 +244,16 @@ func (h *Hub) unsubscribeDMLocked(client *Client, conversationID string) {
 		delete(members, client)
 		if len(members) == 0 {
 			delete(h.dmConversations, conversationID)
+		}
+	}
+}
+
+func (h *Hub) unsubscribePublicChannelLocked(client *Client, channelID string) {
+	delete(client.publicChannels, channelID)
+	if members, ok := h.publicChannels[channelID]; ok {
+		delete(members, client)
+		if len(members) == 0 {
+			delete(h.publicChannels, channelID)
 		}
 	}
 }

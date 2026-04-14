@@ -19,6 +19,7 @@ type Handler struct {
 	message                    *service.MessageService
 	files                      *service.FileService
 	dm                         *service.DMService
+	publicChannels             *service.PublicChannelService
 	friendMailbox              *service.FriendMailboxService
 	ws                         stdhttp.Handler
 	mode                       string
@@ -27,7 +28,7 @@ type Handler struct {
 	exposeInternalErrorDetail  bool
 }
 
-func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, friendMailbox *service.FriendMailboxService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string, exposeInternalErrorDetail bool) *Handler {
+func NewHandler(authService *service.AuthService, profile *service.ProfileService, groupService *service.GroupService, messageService *service.MessageService, fileService *service.FileService, dmService *service.DMService, publicChannelService *service.PublicChannelService, friendMailbox *service.FriendMailboxService, wsHandler stdhttp.Handler, serverMode string, ipfsGatewayPrefix, ipfsGatewayBaseURL string, exposeInternalErrorDetail bool) *Handler {
 	return &Handler{
 		auth:                      authService,
 		profile:                   profile,
@@ -35,6 +36,7 @@ func NewHandler(authService *service.AuthService, profile *service.ProfileServic
 		message:                   messageService,
 		files:                     fileService,
 		dm:                        dmService,
+		publicChannels:            publicChannelService,
 		friendMailbox:             friendMailbox,
 		ws:                        wsHandler,
 		mode:                      serverMode,
@@ -112,6 +114,19 @@ func registerHTTPAPI(r chi.Router, handler *Handler, jwtManager *auth.JWTManager
 		r.Post("/groups/{group_id}/messages/{message_id}/retract", handler.postMessageRetract)
 		r.Post("/groups/{group_id}/messages/{message_id}/delete", handler.postMessageDelete)
 		r.Post("/files", handler.postFiles)
+		r.Get("/public-channels", handler.getPublicChannels)
+		r.Get("/public-channels/subscriptions", handler.getPublicChannelSubscriptions)
+		r.Post("/public-channels", handler.postPublicChannels)
+		r.Get("/public-channels/{channel_id}", handler.getPublicChannel)
+		r.Patch("/public-channels/{channel_id}", handler.patchPublicChannel)
+		r.Post("/public-channels/{channel_id}/subscribe", handler.postPublicChannelSubscribe)
+		r.Get("/public-channels/{channel_id}/head", handler.getPublicChannelHead)
+		r.Get("/public-channels/{channel_id}/changes", handler.getPublicChannelChanges)
+		r.Get("/public-channels/{channel_id}/messages", handler.getPublicChannelMessages)
+		r.Get("/public-channels/{channel_id}/messages/{message_id}", handler.getPublicChannelMessage)
+		r.Post("/public-channels/{channel_id}/messages", handler.postPublicChannelMessage)
+		r.Patch("/public-channels/{channel_id}/messages/{message_id}", handler.patchPublicChannelMessage)
+		r.Delete("/public-channels/{channel_id}/messages/{message_id}", handler.deletePublicChannelMessage)
 
 		r.Get("/dm/conversations", handler.getDMConversations)
 		r.Post("/dm/conversations", handler.postDMConversations)

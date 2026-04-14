@@ -32,11 +32,14 @@ func (b *RedisBus) Publish(ctx context.Context, event Envelope) error {
 	if event.ConversationID != "" {
 		ch = redisx.DMEventsChannel(event.ConversationID)
 	}
+	if event.ChannelID != "" {
+		ch = redisx.PublicChannelEventsChannel(event.ChannelID)
+	}
 	return b.redis.Publish(ctx, ch, raw).Err()
 }
 
 func (b *RedisBus) Consume(ctx context.Context, handler func(context.Context, Envelope) error) error {
-	pubsub := b.redis.PSubscribe(ctx, "chat:events:group:*", "chat:events:dm:*")
+	pubsub := b.redis.PSubscribe(ctx, "chat:events:group:*", "chat:events:dm:*", "chat:events:publicchannel:*")
 	defer func() {
 		_ = pubsub.Close()
 	}()
@@ -57,7 +60,7 @@ func (b *RedisBus) Consume(ctx context.Context, handler func(context.Context, En
 				continue
 			}
 			if err := handler(ctx, event); err != nil {
-				b.logger.Warn("failed to handle redis event", slog.Any("error", err), slog.String("type", event.Type), slog.String("group_id", event.GroupID))
+				b.logger.Warn("failed to handle redis event", slog.Any("error", err), slog.String("type", event.Type), slog.String("group_id", event.GroupID), slog.String("channel_id", event.ChannelID))
 			}
 		}
 	}
